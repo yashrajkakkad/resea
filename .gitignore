@@ -3,6 +3,7 @@
 /.config.*
 /build
 /book
+node_modules
 *.iso
 *.bin
 *.elf
