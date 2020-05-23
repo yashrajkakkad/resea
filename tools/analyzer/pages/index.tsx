@@ -2,10 +2,12 @@ import io from 'socket.io-client';
 import { useState, useEffect, useRef } from 'react';
 import LogStream from "../components/log_stream";
 import TimeSeriesGraph from "../components/time_series_graph";
+import Block from "../components/block";
 
 export default function Home() {
     const [cpuLoadData, setCpuLoadData] = useState([]);
-    const [memUsedData, setMemUsedData] = useState([]);
+    const [kernelMemUsedData, setKernelMemUsedData] = useState([]);
+    const [userMemUsedData, setUserMemUsedData] = useState([]);
     const [logItems, setLogEntries] = useState([]);
     const socket = useRef(null);
 
@@ -30,7 +32,12 @@ export default function Home() {
                     );
                 break;
                 case "kernel.mem_used":
-                    setMemUsedData(prev =>
+                    setKernelMemUsedData(prev =>
+                        [...prev.slice(-50), { x: e.timestamp, y: e.value }]
+                    );
+                break;
+                case "bootstrap.mem_used":
+                    setUserMemUsedData(prev =>
                         [...prev.slice(-50), { x: e.timestamp, y: e.value }]
                     );
                 break;
@@ -38,22 +45,38 @@ export default function Home() {
         });
     }, [socket]);
 
-    return (<div>
-        <h1>Resea Analyzer</h1>
-        <div className="stats" style={{ height: "40vh", display: "flex" }}>
-            <TimeSeriesGraph
-             data={[ { id: "cpu_load", data: cpuLoadData } ]}
-             yLegend="# of tasks in runqueue"
-             colorScheme="nivo"
-            />
-            <TimeSeriesGraph
-             data={[ { id: "mem_used", data: memUsedData } ]}
-             yLegend="MiB"
-             colorScheme="category10"
-            />
+    return (
+        <div style={{ margin: "0px 20px" }}>
+            <h1>Resea Analyzer</h1>
+            <div style={{ display: "flex" }}>
+                <div style={{ "flex-grow": "1" }}>
+                    <Block className="stats" style={{ height: "200px", display: "flex" }}>
+                        <TimeSeriesGraph
+                         data={[ { id: "cpu_load", data: cpuLoadData } ]}
+                         yLegend="# of tasks in runqueue"
+                         colorScheme="nivo"
+                         />
+                        <TimeSeriesGraph
+                         data={[ { id: "mem_used", data: kernelMemUsedData } ]}
+                         yLegend="MiB"
+                         colorScheme="category10"
+                         />
+                        <TimeSeriesGraph
+                         data={[ { id: "mem_used", data: userMemUsedData } ]}
+                         yLegend="MiB"
+                         colorScheme="category10"
+                         />
+                    </Block>
+                    <Block title="Log" style={{ height: "300px" }}>
+                        <LogStream items={logItems}></LogStream>
+                    </Block>
+                </div>
+                <div style={{ width: "350px", "margin-left": "20px" }}>
+                    <Block title="Tasks">
+                        foo
+                    </Block>
+                </div>
+            </div>
         </div>
-        <div style={{ height: "10vh", width: "100%" }}>
-            <LogStream items={logItems}></LogStream>
-        </div>
-    </div>)
+    )
 }

@@ -1,3 +1,5 @@
+import * as randomColor from "randomcolor";
+
 export default function LogStream({ items }) {
     return (
         <div className="log-stream">
@@ -14,7 +16,20 @@ export default function LogStream({ items }) {
                     {items.map(e => (
                         <tr key={e.timestamp} className="item">
                             <td>{e.timestamp}</td>
-                            <td>{e.task}</td>
+                            <td>
+                                <span style={{
+                                    color: "white",
+                                    fontWeight: "bold",
+                                    fontSize: "0.8rem",
+                                    borderRadius: "3px",
+                                    padding: "2px 5px",
+                                    textAlign: "center",
+                                    background: randomColor({
+                                        luminosity: 'dark',
+                                        seed: e.task
+                                    })
+                                }}>{e.task}</span>
+                            </td>
                             <td>{e.level}</td>
                             <td>{e.message}</td>
                         </tr>
@@ -26,14 +41,15 @@ export default function LogStream({ items }) {
             </table>
             <style jsx>{`
                 .log-stream {
-                    height: 100%;
+                    max-height: 200px;
                     width: 100%;
                     overflow: scroll;
+                    font-family: var(--font-code);
+                    font-size: 0.9rem;
                 }
 
                 .items {
                     border-collapse: collapse;
-                    height: 100%;
                     width: 100%;
                 }
 
@@ -46,6 +62,10 @@ export default function LogStream({ items }) {
                     top: 0;
                     z-index: 1;
                     background: #efefef;
+                }
+
+                tbody td {
+                    padding: 4px 10px;
                 }
 
                 .anchor {

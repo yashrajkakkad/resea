@@ -9,6 +9,7 @@
   "dependencies": {
     "@nivo/line": "^0.61.1",
     "next": "^9.4.1",
+    "randomcolor": "^0.5.4",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
     "sass": "^1.26.5",

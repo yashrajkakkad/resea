@@ -5,12 +5,10 @@ export default function TimeSeriesGraph({ data, yLegend, colorScheme }) {
         <ResponsiveLine
             data={data}
             margin={{ top: 50, right: 110, bottom: 50, left: 60 }}
-            xScale={{ type: 'time', format: '%s' }}
-            xFormat="time:%s"
+            xScale={{ type: 'point' }}
             yScale={{ type: 'linear', min: 0, max: 'auto', stacked: true }}
             axisBottom={{
                 orient: 'bottom',
-                format: '%H:%M:%S',
                 tickPadding: 5,
                 tickRotation: 45,
             }}
