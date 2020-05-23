@@ -7,3 +7,11 @@ body {
     font-family: -apple-system, sans-serif;
     background: var(--color-bg);
 }
+
+table {
+    thead {
+        th {
+            text-align: left;
+        }
+    }
+}
