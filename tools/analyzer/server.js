@@ -4,8 +4,8 @@ const io = require("socket.io")()
 setInterval(() => {
     io.emit("sensor", ({
         timestamp: Math.floor(new Date()),
-        key: "kernel.mem_free",
-        value: Math.floor(Math.random() * 100)
+        key: "kernel.mem_used",
+        value: 300 + Math.floor(Math.random() * 100)
     }))
 }, 1000)
 

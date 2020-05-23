@@ -1,3 +1,9 @@
+:root {
+    --color-bg: #efefef;
+    color: #333;
+}
+
 body {
-    font-family: sans-serif;
+    font-family: -apple-system, sans-serif;
+    background: var(--color-bg);
 }
