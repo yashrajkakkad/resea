@@ -15,14 +15,14 @@ export default function LogStream({ items }) {
                 <tbody>
                     {items.map(e => (
                         <tr key={e.timestamp} className="item">
-                            <td>{e.timestamp}</td>
-                            <td>
+                            <td style={{ width: "15%" }}>{e.timestamp}</td>
+                            <td style={{ width: "10%" }}>
                                 <span style={{
                                     color: "white",
                                     fontWeight: "bold",
-                                    fontSize: "0.8rem",
+                                    fontSize: "0.78rem",
                                     borderRadius: "3px",
-                                    padding: "2px 5px",
+                                    padding: "1px 5px",
                                     textAlign: "center",
                                     background: randomColor({
                                         luminosity: 'dark',
@@ -30,12 +30,16 @@ export default function LogStream({ items }) {
                                     })
                                 }}>{e.task}</span>
                             </td>
-                            <td>{e.level}</td>
+                            <td style={{ width: "10%" }}>{e.level}</td>
                             <td>{e.message}</td>
                         </tr>
                     ))}
                     <tr className="anchor">
-                        <td>bottom of log</td>
+                        <td colSpan="4">
+                            <span className="anchor-message">
+                                bottom of log
+                            </span>
+                        </td>
                     </tr>
                 </tbody>
             </table>
@@ -65,12 +69,21 @@ export default function LogStream({ items }) {
                 }
 
                 tbody td {
-                    padding: 4px 10px;
+                    padding: 4px 0px;
                 }
 
                 .anchor {
                     overflow-anchor: auto;
                     height: 1px;
+                    text-align: center;
+                }
+
+                .anchor-message {
+                    border: 1px solid #7a7a7a;
+                    background: #efefef;
+                    padding: 2px 20px;
+                    border-radius: 5px;
+                    font-weight: bold;
                 }
             `}</style>
         </div>

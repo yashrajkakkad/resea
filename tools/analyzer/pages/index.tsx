@@ -3,8 +3,10 @@ import { useState, useEffect, useRef } from 'react';
 import LogStream from "../components/log_stream";
 import TimeSeriesGraph from "../components/time_series_graph";
 import Block from "../components/block";
+import NavBar from "../components/nav_bar";
 
 export default function Home() {
+    const [tasks, setTasks] = useState([]);
     const [cpuLoadData, setCpuLoadData] = useState([]);
     const [kernelMemUsedData, setKernelMemUsedData] = useState([]);
     const [userMemUsedData, setUserMemUsedData] = useState([]);
@@ -19,26 +21,29 @@ export default function Home() {
     }, []);
 
     useEffect(() => {
+        socket.current.on("tasks", ({ tasks }) => {
+            setTasks(tasks);
+        });
+
         socket.current.on("log", e => {
             setLogEntries(prev => [...prev, e])
         });
 
         socket.current.on("sensor", e => {
-            console.log(e)
             switch (e.key) {
                 case "kernel.cpu_load":
                     setCpuLoadData(prev =>
-                        [...prev.slice(-50), { x: e.timestamp, y: e.value }]
+                        [...prev.slice(-10), { x: e.timestamp, y: e.value }]
                     );
                 break;
                 case "kernel.mem_used":
                     setKernelMemUsedData(prev =>
-                        [...prev.slice(-50), { x: e.timestamp, y: e.value }]
+                        [...prev.slice(-10), { x: e.timestamp, y: e.value }]
                     );
                 break;
                 case "bootstrap.mem_used":
                     setUserMemUsedData(prev =>
-                        [...prev.slice(-50), { x: e.timestamp, y: e.value }]
+                        [...prev.slice(-10), { x: e.timestamp, y: e.value }]
                     );
                 break;
             }
@@ -47,10 +52,10 @@ export default function Home() {
 
     return (
         <div style={{ margin: "0px 20px" }}>
-            <h1>Resea Analyzer</h1>
+            <NavBar />
             <div style={{ display: "flex" }}>
-                <div style={{ "flex-grow": "1" }}>
-                    <Block className="stats" style={{ height: "200px", display: "flex" }}>
+                <div style={{ flexGrow: "1" }}>
+                    <Block style={{ height: "200px", display: "flex" }}>
                         <TimeSeriesGraph
                          data={[ { id: "cpu_load", data: cpuLoadData } ]}
                          yLegend="# of tasks in runqueue"
@@ -71,9 +76,36 @@ export default function Home() {
                         <LogStream items={logItems}></LogStream>
                     </Block>
                 </div>
-                <div style={{ width: "350px", "margin-left": "20px" }}>
-                    <Block title="Tasks">
-                        foo
+                <div style={{ width: "350px", minHeight: "500px", marginLeft: "20px" }}>
+                    <Block title="Tasks" style={{ minHeight: "500px" }}>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Task ID</th>
+                                    <th>Name</th>
+                                    <th>State</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {tasks.map(task => (
+                                    <tr key={task.id}>
+                                        <td>{task.id}</td>
+                                        <td>{task.name}</td>
+                                        <td>
+                                            {task.state}
+                                            {task.state == "sending"
+                                             && ` (to #${task.src_or_dst})`}
+                                            {task.state == "receiving"
+                                             && task.src
+                                             && ` (from #${task.src_or_dst})`}
+                                            {task.state == "receiving"
+                                             && !task.src
+                                             && ` (from any)`}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </Block>
                 </div>
             </div>

@@ -4,14 +4,10 @@ export default function TimeSeriesGraph({ data, yLegend, colorScheme }) {
     return (
         <ResponsiveLine
             data={data}
-            margin={{ top: 50, right: 110, bottom: 50, left: 60 }}
+            margin={{ top: 20, right: 0, bottom: 50, left: 70 }}
             xScale={{ type: 'point' }}
             yScale={{ type: 'linear', min: 0, max: 'auto', stacked: true }}
-            axisBottom={{
-                orient: 'bottom',
-                tickPadding: 5,
-                tickRotation: 45,
-            }}
+            axisBottom={null}
             axisLeft={{
                 orient: 'left',
                 tickSize: 5,
@@ -23,11 +19,11 @@ export default function TimeSeriesGraph({ data, yLegend, colorScheme }) {
             }}
             legends={[
                 {
-                    anchor: "bottom-right",
+                    anchor: "bottom",
                     direction: "column",
-                    symbolShape: 'circle',
+                    symbolShape: "circle",
                     justify: true,
-                    translateX: 100,
+                    translateY: 30,
                     itemHeight: 20,
                     itemWidth: 80,
                     effects: []

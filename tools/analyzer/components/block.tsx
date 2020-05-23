@@ -8,6 +8,7 @@ export default function Block({ title, style, children }) {
                     background: #fafafa;
                     padding: 5px 10px;
                     border-radius: 5px;
+                    box-shadow: 3px 3px 0 0 #cacaca;
                 }
 
                 section:not(:first-child) {
