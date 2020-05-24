@@ -73,7 +73,9 @@ export default function Home() {
                          />
                     </Block>
                     <Block title="Log" style={{ height: "300px" }}>
-                        <LogStream items={logItems}></LogStream>
+                        <div style={{ height: "200px" }}>
+                            <LogStream items={logItems}></LogStream>
+                        </div>
                     </Block>
                 </div>
                 <div style={{ width: "350px", minHeight: "500px", marginLeft: "20px" }}>

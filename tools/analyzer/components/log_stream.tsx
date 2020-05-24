@@ -17,7 +17,10 @@ export default function LogStream({ items }) {
             ))}
             <style jsx>{`
                 .log-stream {
-                    max-height: 200px;
+                    height: 100%;
+                    background: #f2f2f2;
+                    padding: 5px 10px;
+                    box-sizing: border-box;
                     width: 100%;
                     overflow: scroll;
                     font-family: var(--font-code);
