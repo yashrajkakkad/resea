@@ -2,15 +2,46 @@ import Head from "next/head";
 import MenuIcon from "@material-ui/icons/Menu";
 import ChevronLeftIcon from "@material-ui/icons/ChevronLeft";
 import DashboardIcon from "@material-ui/icons/Dashboard";
-import { AppBar, Toolbar, IconButton, List, ListItem, Typography, CssBaseline, Drawer, Divider, ListItemIcon } from "@material-ui/core";
+import {
+    AppBar, Toolbar, IconButton, List, ListItem,
+    Typography, CssBaseline, Drawer, Divider,
+    ListItemIcon, ListItemText
+} from "@material-ui/core";
+import { makeStyles, useTheme } from '@material-ui/core/styles';
 import { useState } from "react";
 
+const drawerWidth = 180;
+const useStyles = makeStyles((theme) => ({
+    root: {
+      display: 'flex',
+    },
+    drawer: {
+      [theme.breakpoints.up('sm')]: {
+        width: drawerWidth,
+        flexShrink: 0,
+      },
+    },
+    appBar: {
+      [theme.breakpoints.up('sm')]: {
+        width: `calc(100% - ${drawerWidth}px)`,
+        marginLeft: drawerWidth,
+      },
+    },
+    toolbar: theme.mixins.toolbar,
+    drawerPaper: {
+      width: drawerWidth,
+    },
+    content: {
+        flexGrow: 1,
+        padding: theme.spacing(1),
+    },
+}));
+
 export default function App({ Component, pageProps }) {
-    const [drawerOpened, setDrawerOpened] = useState(true);
-    const handleDrawerOpen = () => { setDrawerOpened(true); };
-    const handleDrawerClose = () => { setDrawerOpened(false); };
+    const theme = useTheme();
+    const classes = useStyles(theme);
     return (
-        <div>
+        <div className={classes.root}>
             <CssBaseline />
             <Head>
                 <title>Resea Analyzer</title>
@@ -19,11 +50,10 @@ export default function App({ Component, pageProps }) {
                 <meta name="robots" content="noindex, nofollow" />
             </Head>
 
-            <AppBar position="static">
-                <Toolbar>
+            <AppBar position="fixed" className={classes.appBar}>
+                <Toolbar variant="dense">
                     <IconButton
                         edge="start" color="inherit" aria-label="menu"
-                        onClick={handleDrawerOpen}
                     >
                         <MenuIcon />
                     </IconButton>
@@ -31,26 +61,27 @@ export default function App({ Component, pageProps }) {
                 </Toolbar>
             </AppBar>
 
-            <Drawer
-                variant="permanent"
-                open={drawerOpened}
-            >
-                <div>
-                  <IconButton onClick={handleDrawerClose}>
-                    <ChevronLeftIcon />
-                  </IconButton>
-                </div>
-                <Divider />
-                <List component="nav" aria-label="navigation">
-                    <ListItem button>
-                        <ListItemIcon>
-                            <DashboardIcon />
-                        </ListItemIcon>
-                    </ListItem>
-                </List>
-            </Drawer>
+            <nav className={classes.drawer}>
+                <Drawer
+                    variant="permanent"
+                    open={true}
+                    classes={{ paper: classes.drawerPaper }}
+                >
+                    <List component="nav" aria-label="navigation">
+                        <ListItem button>
+                            <ListItemIcon>
+                                <DashboardIcon />
+                            </ListItemIcon>
+                            <ListItemText primary="Dashboard" />
+                        </ListItem>
+                    </List>
+                </Drawer>
+            </nav>
 
-            <Component {...pageProps} />
+            <main className={classes.content}>
+                <div className={classes.toolbar} />
+                <Component {...pageProps} />
+            </main>
         </div>
     )
 }
