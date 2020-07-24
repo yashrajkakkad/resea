@@ -2,7 +2,6 @@ import io from 'socket.io-client';
 import { useState, useEffect, useRef } from 'react';
 import LogStream from "../components/log_stream";
 import TimeSeriesGraph from "../components/time_series_graph";
-import Block from "../components/block";
 import NavBar from "../components/nav_bar";
 
 export default function Home() {
@@ -51,11 +50,11 @@ export default function Home() {
     }, [socket]);
 
     return (
-        <div style={{ margin: "0px 20px" }}>
+        <div>
             <NavBar />
-            <div style={{ display: "flex" }}>
-                <div style={{ flexGrow: "1" }}>
-                    <Block style={{ height: "200px", display: "flex" }}>
+            <div>
+                <div>
+                    <div style={{ height: "200px", display: "flex" }}>
                         <TimeSeriesGraph
                          data={[ { id: "cpu_load", data: cpuLoadData } ]}
                          yLegend="# of tasks in runqueue"
@@ -71,15 +70,15 @@ export default function Home() {
                          yLegend="MiB"
                          colorScheme="category10"
                          />
-                    </Block>
-                    <Block title="Log" style={{ height: "300px" }}>
+                    </div>
+                    <div title="Log" style={{ height: "300px" }}>
                         <div style={{ height: "200px" }}>
                             <LogStream items={logItems}></LogStream>
                         </div>
-                    </Block>
+                    </div>
                 </div>
                 <div style={{ width: "350px", minHeight: "500px", marginLeft: "20px" }}>
-                    <Block title="Tasks" style={{ minHeight: "500px" }}>
+                    <div title="Tasks" style={{ minHeight: "500px" }}>
                         <table>
                             <thead>
                                 <tr>
@@ -108,7 +107,7 @@ export default function Home() {
                                 ))}
                             </tbody>
                         </table>
-                    </Block>
+                    </div>
                 </div>
             </div>
         </div>
