@@ -2,12 +2,22 @@ import io from 'socket.io-client';
 import { useState, useEffect, useRef } from 'react';
 import LogStream from "../components/log_stream";
 import TimeSeriesGraph from "../components/time_series_graph";
-import { Grid, Container, Paper, makeStyles } from '@material-ui/core';
-import classes from '*.module.css';
+import { Grid, Container, Paper, makeStyles, Typography } from '@material-ui/core';
 
 const useStyles = makeStyles((theme) => ({
+    welcomePaper: {
+      padding: theme.spacing(2),
+      backgroundColor: theme.palette.grey[200],
+      marginBottom: theme.spacing(1),
+    },
     graphPaper: {
-        height: 240,
+        padding: theme.spacing(2),
+        display: 'flex',
+        overflow: 'auto',
+        flexDirection: 'column',
+    },
+    graph: {
+        height: 200,
     }
 }));
 
@@ -59,33 +69,53 @@ export default function Home() {
 
     return (
         <Container maxWidth="lg">
-            <h1>foo</h1>
-            <Grid container spacing={3}>
-                <Grid item xs={12} md={8} lg={3}>
+            <Paper className={classes.welcomePaper} elevation={0}>
+                <Typography variant="body1">
+                    Resea Analyzer analyzes the kernel log and visualizes
+                    system status and events.
+                </Typography>
+            </Paper>
+            <Grid container spacing={1}>
+                <Grid item xs={12} md={4} lg={3}>
                     <Paper className={classes.graphPaper}>
-                        <TimeSeriesGraph
-                            data={[ { id: "cpu_load", data: cpuLoadData } ]}
-                            yLegend="# of tasks in runqueue"
-                            colorScheme="nivo"
-                        />
+                        <Typography component="h2" variant="h6" gutterBottom>
+                            CPU load
+                        </Typography>
+                        <div className={classes.graph}>
+                            <TimeSeriesGraph
+                                data={[ { id: "cpu_load", data: cpuLoadData } ]}
+                                yLegend="# of tasks in runqueue"
+                                colorScheme="nivo"
+                            />
+                        </div>
                     </Paper>
                 </Grid>
                 <Grid item xs={12} md={4} lg={3}>
                     <Paper className={classes.graphPaper}>
-                        <TimeSeriesGraph
-                            data={[ { id: "mem_used", data: kernelMemUsedData } ]}
-                            yLegend="MiB"
-                            colorScheme="category10"
-                        />
+                        <Typography component="h2" variant="h6" gutterBottom>
+                            Memory usage
+                        </Typography>
+                            <div className={classes.graph}>
+                            <TimeSeriesGraph
+                                data={[ { id: "mem_used", data: kernelMemUsedData } ]}
+                                yLegend="MiB"
+                                colorScheme="category10"
+                            />
+                        </div>
                     </Paper>
                 </Grid>
                 <Grid item xs={12} md={4} lg={3}>
                     <Paper className={classes.graphPaper}>
-                        <TimeSeriesGraph
-                            data={[ { id: "mem_used", data: userMemUsedData } ]}
-                            yLegend="MiB"
-                            colorScheme="category10"
-                        />
+                        <Typography component="h2" variant="h6" gutterBottom>
+                            IPC
+                        </Typography>
+                        <div className={classes.graph}>
+                            <TimeSeriesGraph
+                                data={[ { id: "mem_used", data: userMemUsedData } ]}
+                                yLegend="MiB"
+                                colorScheme="category10"
+                            />
+                        </div>
                     </Paper>
                 </Grid>
             </Grid>

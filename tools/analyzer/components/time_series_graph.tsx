@@ -4,7 +4,7 @@ export default function TimeSeriesGraph({ data, yLegend, colorScheme }) {
     return (
         <ResponsiveLine
             data={data}
-            margin={{ top: 20, right: 0, bottom: 50, left: 70 }}
+            margin={{ top: 20, right: 0, bottom: 50, left: 50 }}
             xScale={{ type: 'point' }}
             yScale={{ type: 'linear', min: 0, max: 'auto', stacked: true }}
             axisBottom={null}
