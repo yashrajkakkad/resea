@@ -60,7 +60,6 @@ export default function App({ Component, pageProps }) {
                         onChange={() => {}}
                         indicatorColor="primary"
                         textColor="primary"
-                        centered
                     >
                         <Tab label="dashboard" />
                     </Tabs>
