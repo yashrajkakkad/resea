@@ -1,13 +1,14 @@
 import Head from "next/head";
 import MenuIcon from "@material-ui/icons/Menu";
 import FeedbackIcon from "@material-ui/icons/Feedback";
+import SettingsIcon from "@material-ui/icons/Settings";
 import {
     AppBar, Toolbar, Typography, CssBaseline,
     useMediaQuery, createMuiTheme, ThemeProvider,
-    Tabs, Tab, Paper, Box, Button
+    Tabs, Tab, Paper, Box, Button, Grid, FormControl, InputLabel, Input, InputAdornment, TextField
 } from "@material-ui/core";
 import { makeStyles, useTheme } from '@material-ui/core/styles';
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 const useStyles = makeStyles((theme) => ({
     title: {
@@ -18,16 +19,27 @@ const useStyles = makeStyles((theme) => ({
     },
     content: {
         marginTop: theme.spacing(1),
+    },
+    streamUrl: {
+        marginRight: theme.spacing(2),
+        marginLeft: theme.spacing(3),
+        flexGrow: 1,
+        maxWidth: "500px",
     }
 }));
 
 export default function App({ Component, pageProps }) {
+    const [streamUrl, setStreamUrl] = useState("http://localhost:9091");
     const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
     const theme = useMemo(() => {
         return createMuiTheme({
           palette: { type: prefersDarkMode ? 'dark' : 'light' },
         })
     }, [prefersDarkMode]);
+
+    const updateStreamUrl = (ev) => {
+        setStreamUrl(ev.target.value);
+    }
 
     const classes = useStyles(theme);
     return (
@@ -55,17 +67,30 @@ export default function App({ Component, pageProps }) {
             <main>
                 <div className={classes.toolbar} />
                 <Paper elevation={0} variant="outlined">
-                    <Tabs
-                        value={0}
-                        onChange={() => {}}
-                        indicatorColor="primary"
-                        textColor="primary"
-                    >
-                        <Tab label="dashboard" />
-                    </Tabs>
+                    <Grid container justify="space-between"  alignItems="center">
+                        <Grid item>
+                            <Tabs
+                                value={0}
+                                onChange={() => {}}
+                                indicatorColor="primary"
+                                textColor="primary"
+                            >
+                                <Tab label="dashboard" />
+                            </Tabs>
+                        </Grid>
+                        <Grid item className={classes.streamUrl}>
+                            <TextField
+                                label="Log stream URL"
+                                variant="filled"
+                                fullWidth={true}
+                                value={streamUrl}
+                                onChange={updateStreamUrl}
+                            />
+                        </Grid>
+                    </Grid>
                 </Paper>
                 <Box className={classes.content}>
-                    <Component {...pageProps} />
+                    <Component streamUrl={streamUrl} {...pageProps} />
                 </Box>
             </main>
         </ThemeProvider>

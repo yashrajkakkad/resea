@@ -50,7 +50,7 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
-export default function Home() {
+export default function Home({ streamUrl }) {
     const classes = useStyles();
     const [tasks, setTasks] = useState([]);
     const [cpuLoadData, setCpuLoadData] = useState([]);
@@ -65,13 +65,11 @@ export default function Home() {
     }
 
     useEffect(() => {
-        socket.current = io("http://localhost:9091")
-        return () => {
+        if (socket.current) {
             socket.current.close();
         }
-    }, []);
 
-    useEffect(() => {
+        socket.current = io(streamUrl);
         socket.current.on("tasks", ({ tasks }) => {
             setTasks(tasks);
         });
@@ -99,14 +97,14 @@ export default function Home() {
                 break;
             }
         });
-    }, [socket]);
+
+        return () => {
+            socket.current.close();
+        }
+    }, [streamUrl]);
 
     return (
         <Container maxWidth="xl">
-            <Alert severity="info">
-                Resea Analyzer analyzes the kernel log and visualizes
-                    system status and events.
-            </Alert>
             <Grid container spacing={1} className={classes.papersContainer}>
                 <Grid container item xs={12} lg={6} alignContent="flex-start">
                     <Grid item xs={12} md={4} lg={4}>
