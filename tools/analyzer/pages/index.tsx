@@ -26,13 +26,16 @@ const useStyles = makeStyles((theme) => ({
     graph: {
         height: 200,
     },
+    logGrid: {
+        flexGrow: 1,
+    },
     logPaper: {
         padding: theme.spacing(2),
         marginBottom: theme.spacing(2),
     },
     logStream: {
         marginTop: theme.spacing(1),
-        height: 200,
+        height: "500px",
         overflow: "scroll",
     },
     tasksPaper: {
@@ -99,7 +102,7 @@ export default function Home() {
                 </Typography>
             </Paper>
             <Grid container spacing={1} className={classes.papersContainer}>
-                <Grid container item xs={12} lg={6}>
+                <Grid container item xs={12} lg={6} alignContent="flex-start">
                     <Grid item xs={12} md={4} lg={4}>
                         <Paper className={classes.graphPaper}>
                             <Typography component="h2" variant="h6">
@@ -181,7 +184,7 @@ export default function Home() {
                     </Grid>
                 </Grid>
 
-                <Grid item xs={12} lg={6}>
+                <Grid item xs={12} lg={6} className={classes.logGrid}>
                     <Paper className={classes.logPaper}>
                         <Typography component="h2" variant="h6">
                             Log
