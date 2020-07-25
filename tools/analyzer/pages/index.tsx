@@ -4,8 +4,10 @@ import LogStream from "../components/log_stream";
 import TimeSeriesGraph from "../components/time_series_graph";
 import {
     Grid, Container, Paper, makeStyles, Typography, Box,
-    Table, TableContainer, TableHead, TableBody, TableRow, TableCell
+    Table, TableContainer, TableHead, TableBody, TableRow, TableCell,
+    Card, CardContent, CardActions, Button, FormControlLabel, Switch, Divider,
 } from '@material-ui/core';
+import { Alert } from "@material-ui/lab";
 
 const useStyles = makeStyles((theme) => ({
     welcomePaper: {
@@ -31,11 +33,12 @@ const useStyles = makeStyles((theme) => ({
     },
     logPaper: {
         padding: theme.spacing(2),
+        margin: theme.spacing(1),
         marginBottom: theme.spacing(2),
     },
     logStream: {
         marginTop: theme.spacing(1),
-        height: "500px",
+        minHeight: "500px", // FIXME: Remove this hard-coded size.
         overflow: "scroll",
     },
     tasksPaper: {
@@ -55,6 +58,11 @@ export default function Home() {
     const [userMemUsedData, setUserMemUsedData] = useState([]);
     const [logItems, setLogEntries] = useState([]);
     const socket = useRef(null);
+    const [autoScroll, setAutoScroll] = useState(true);
+
+    const toggleAutoScroll = (ev) => {
+        setAutoScroll(ev.target.checked);
+    }
 
     useEffect(() => {
         socket.current = io("http://localhost:9091")
@@ -95,12 +103,10 @@ export default function Home() {
 
     return (
         <Container maxWidth="xl">
-            <Paper className={classes.welcomePaper} elevation={0}>
-                <Typography variant="body1">
-                    Resea Analyzer analyzes the kernel log and visualizes
+            <Alert severity="info">
+                Resea Analyzer analyzes the kernel log and visualizes
                     system status and events.
-                </Typography>
-            </Paper>
+            </Alert>
             <Grid container spacing={1} className={classes.papersContainer}>
                 <Grid container item xs={12} lg={6} alignContent="flex-start">
                     <Grid item xs={12} md={4} lg={4}>
@@ -185,14 +191,32 @@ export default function Home() {
                 </Grid>
 
                 <Grid item xs={12} lg={6} className={classes.logGrid}>
-                    <Paper className={classes.logPaper}>
-                        <Typography component="h2" variant="h6">
-                            Log
-                        </Typography>
-                        <Box className={classes.logStream}>
-                            <LogStream items={logItems}></LogStream>
-                        </Box>
-                    </Paper>
+                    <Card className={classes.logPaper}>
+                        <CardContent>
+                            <Typography component="h2" variant="h6">
+                                Log
+                            </Typography>
+                            <Box className={classes.logStream}>
+                                <LogStream items={logItems} autoScroll={autoScroll}></LogStream>
+                            </Box>
+                        </CardContent>
+                        <Divider />
+                        <CardActions>
+                            <Grid container justify="space-between"  alignItems="center">
+                                <Grid item>
+                                    <FormControlLabel
+                                        control={<Switch checked={autoScroll} onChange={toggleAutoScroll} />}
+                                        label={autoScroll ? "Auto Scrolling..." : "Auto Scroll"}
+                                    />
+                                </Grid>
+                                <Grid item>
+                                    <Typography>
+                                        {logItems.length} lines in total
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+                        </CardActions>
+                    </Card>
                 </Grid>
             </Grid>
         </Container>

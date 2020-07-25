@@ -1,5 +1,5 @@
 import * as randomColor from "randomcolor";
-import { PureComponent } from "react";
+import { PureComponent, useEffect, useState } from "react";
 import { AutoSizer, Column, Table } from 'react-virtualized';
 import { TableCell, createStyles, withStyles } from "@material-ui/core";
 import clsx from 'clsx';
@@ -33,7 +33,7 @@ class MuiVirtualizedTable extends PureComponent {
         return (
             <TableCell
                 component="div"
-                variant="head"
+                variant="body"
                 className={clsx(classes.tableCell, classes.flexContainer)}
                 style={{ height: rowHeight }}
             >{ cellData }</TableCell>
@@ -41,7 +41,10 @@ class MuiVirtualizedTable extends PureComponent {
     }
 
     render() {
-        const { classes, columns, headerHeight, rowHeight, rowCount, rowGetter } = this.props;
+        const {
+            classes, columns, headerHeight, rowHeight, rowCount, rowGetter,
+            scrollToIndex
+        } = this.props;
         return (
             <AutoSizer>
                 {({ height, width }) => (
@@ -52,6 +55,7 @@ class MuiVirtualizedTable extends PureComponent {
                         rowCount={rowCount}
                         rowGetter={rowGetter}
                         headerHeight={headerHeight}
+                        scrollToIndex={scrollToIndex}
                         rowClassName={clsx(classes.tableRow, classes.flexContainer)}
                         gridStyle={{
                             direction: 'inherit',
@@ -78,13 +82,19 @@ class MuiVirtualizedTable extends PureComponent {
 
 const VirtualizedTable = withStyles(styles)(MuiVirtualizedTable);
 
-export default function LogStream({ items }) {
+export default function LogStream({ items, autoScroll }) {
+    const [scrollToIndex, setscrollToIndex] = useState(undefined);
+    useEffect(() => {
+        setscrollToIndex(autoScroll ? items.length : undefined);
+    }, [autoScroll, items]);
+
     return (
         <VirtualizedTable
             rowCount={items.length}
             rowGetter={({ index }) => items[index]}
-            headerHeight={50}
-            rowHeight={50}
+            headerHeight={30}
+            rowHeight={30}
+            scrollToIndex={scrollToIndex}
             columns={[
                 {
                     label: "Timestamp",
