@@ -7,14 +7,8 @@ import {
     Table, TableContainer, TableHead, TableBody, TableRow, TableCell,
     Card, CardContent, CardActions, Button, FormControlLabel, Switch, Divider,
 } from '@material-ui/core';
-import { Alert } from "@material-ui/lab";
 
 const useStyles = makeStyles((theme) => ({
-    welcomePaper: {
-      padding: theme.spacing(2),
-      backgroundColor: theme.palette.grey[200],
-      marginBottom: theme.spacing(1),
-    },
     papersContainer: {
     },
     graphPaper: {
@@ -31,10 +25,8 @@ const useStyles = makeStyles((theme) => ({
     logGrid: {
         flexGrow: 1,
     },
-    logPaper: {
-        padding: theme.spacing(2),
+    logCard: {
         margin: theme.spacing(1),
-        marginBottom: theme.spacing(2),
     },
     logStream: {
         marginTop: theme.spacing(1),
@@ -189,7 +181,7 @@ export default function Home({ streamUrl }) {
                 </Grid>
 
                 <Grid item xs={12} lg={6} className={classes.logGrid}>
-                    <Card className={classes.logPaper}>
+                    <Card className={classes.logCard}>
                         <CardContent>
                             <Typography component="h2" variant="h6">
                                 Log
