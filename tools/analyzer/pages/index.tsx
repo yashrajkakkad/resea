@@ -13,8 +13,12 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: theme.palette.grey[200],
       marginBottom: theme.spacing(1),
     },
+    papersContainer: {
+    },
     graphPaper: {
         padding: theme.spacing(1),
+        margin: theme.spacing(1),
+        marginBottom: theme.spacing(2),
         display: 'flex',
         overflow: 'auto',
         flexDirection: 'column',
@@ -23,8 +27,8 @@ const useStyles = makeStyles((theme) => ({
         height: 200,
     },
     logPaper: {
-        marginTop: theme.spacing(2),
         padding: theme.spacing(2),
+        marginBottom: theme.spacing(2),
     },
     logStream: {
         marginTop: theme.spacing(1),
@@ -32,8 +36,8 @@ const useStyles = makeStyles((theme) => ({
         overflow: "scroll",
     },
     tasksPaper: {
-        marginTop: theme.spacing(2),
         padding: theme.spacing(2),
+        marginBottom: theme.spacing(2),
     },
     tasksTable: {
         marginTop: theme.spacing(2),
@@ -87,102 +91,107 @@ export default function Home() {
     }, [socket]);
 
     return (
-        <Container maxWidth="lg">
+        <Container maxWidth="xl">
             <Paper className={classes.welcomePaper} elevation={0}>
                 <Typography variant="body1">
                     Resea Analyzer analyzes the kernel log and visualizes
                     system status and events.
                 </Typography>
             </Paper>
-            <Grid container spacing={1}>
-                <Grid item xs={12} md={4} lg={3}>
-                    <Paper className={classes.graphPaper}>
-                        <Typography component="h2" variant="h6">
-                            CPU load
-                        </Typography>
-                        <div className={classes.graph}>
-                            <TimeSeriesGraph
-                                data={[ { id: "cpu_load", data: cpuLoadData } ]}
-                                yLegend="# of tasks in runqueue"
-                                colorScheme="nivo"
-                            />
-                        </div>
-                    </Paper>
-                </Grid>
-                <Grid item xs={12} md={4} lg={3}>
-                    <Paper className={classes.graphPaper}>
-                        <Typography component="h2" variant="h6">
-                            Memory usage
-                        </Typography>
+            <Grid container spacing={1} className={classes.papersContainer}>
+                <Grid container item xs={12} lg={6}>
+                    <Grid item xs={12} md={4} lg={4}>
+                        <Paper className={classes.graphPaper}>
+                            <Typography component="h2" variant="h6">
+                                CPU load
+                            </Typography>
                             <div className={classes.graph}>
-                            <TimeSeriesGraph
-                                data={[ { id: "mem_used", data: kernelMemUsedData } ]}
-                                yLegend="MiB"
-                                colorScheme="category10"
-                            />
-                        </div>
-                    </Paper>
+                                <TimeSeriesGraph
+                                    data={[ { id: "cpu_load", data: cpuLoadData } ]}
+                                    yLegend="# of tasks in runqueue"
+                                    colorScheme="nivo"
+                                />
+                            </div>
+                        </Paper>
+                    </Grid>
+                    <Grid item xs={12} md={4} lg={4}>
+                        <Paper className={classes.graphPaper}>
+                            <Typography component="h2" variant="h6">
+                                Memory usage
+                            </Typography>
+                                <div className={classes.graph}>
+                                <TimeSeriesGraph
+                                    data={[ { id: "mem_used", data: kernelMemUsedData } ]}
+                                    yLegend="MiB"
+                                    colorScheme="category10"
+                                />
+                            </div>
+                        </Paper>
+                    </Grid>
+                    <Grid item xs={12} md={4} lg={4}>
+                        <Paper className={classes.graphPaper}>
+                            <Typography component="h2" variant="h6">
+                                IPC
+                            </Typography>
+                            <div className={classes.graph}>
+                                <TimeSeriesGraph
+                                    data={[ { id: "mem_used", data: userMemUsedData } ]}
+                                    yLegend="MiB"
+                                    colorScheme="category10"
+                                />
+                            </div>
+                        </Paper>
+                    </Grid>
+                    <Grid item xs={12} md={12} lg={12}>
+                        <Paper className={classes.tasksPaper}>
+                            <Typography component="h2" variant="h6">
+                                Tasks
+                            </Typography>
+                            <TableContainer className={classes.tasksTable}>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Task ID</TableCell>
+                                            <TableCell>Name</TableCell>
+                                            <TableCell>State</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {tasks.map(task => (
+                                            <TableRow key={task.id}>
+                                                <TableCell>{task.id}</TableCell>
+                                                <TableCell>{task.name}</TableCell>
+                                                <TableCell>
+                                                    {task.state}
+                                                    {task.state == "sending"
+                                                     && ` (to #${task.src_or_dst})`}
+                                                    {task.state == "receiving"
+                                                     && task.src
+                                                     && ` (from #${task.src_or_dst})`}
+                                                    {task.state == "receiving"
+                                                     && !task.src
+                                                     && ` (from any)`}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </Paper>
+                    </Grid>
                 </Grid>
-                <Grid item xs={12} md={4} lg={3}>
-                    <Paper className={classes.graphPaper}>
+
+                <Grid item xs={12} lg={6}>
+                    <Paper className={classes.logPaper}>
                         <Typography component="h2" variant="h6">
-                            IPC
+                            Log
                         </Typography>
-                        <div className={classes.graph}>
-                            <TimeSeriesGraph
-                                data={[ { id: "mem_used", data: userMemUsedData } ]}
-                                yLegend="MiB"
-                                colorScheme="category10"
-                            />
-                        </div>
+                        <Box className={classes.logStream}>
+                            <LogStream items={logItems}></LogStream>
+                        </Box>
                     </Paper>
                 </Grid>
             </Grid>
-
-            <Paper className={classes.logPaper}>
-                <Typography component="h2" variant="h6">
-                    Log
-                </Typography>
-                <Box className={classes.logStream}>
-                    <LogStream items={logItems}></LogStream>
-                </Box>
-            </Paper>
-
-            <Paper className={classes.tasksPaper}>
-                <Typography component="h2" variant="h6">
-                    Tasks
-                </Typography>
-                <TableContainer className={classes.tasksTable}>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Task ID</TableCell>
-                                <TableCell>Name</TableCell>
-                                <TableCell>State</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {tasks.map(task => (
-                                <TableRow key={task.id}>
-                                    <TableCell>{task.id}</TableCell>
-                                    <TableCell>{task.name}</TableCell>
-                                    <TableCell>
-                                        {task.state}
-                                        {task.state == "sending"
-                                         && ` (to #${task.src_or_dst})`}
-                                        {task.state == "receiving"
-                                         && task.src
-                                         && ` (from #${task.src_or_dst})`}
-                                        {task.state == "receiving"
-                                         && !task.src
-                                         && ` (from any)`}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </Paper>
         </Container>
     )
 }
