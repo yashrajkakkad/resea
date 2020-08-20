@@ -15,18 +15,10 @@ static struct tx_desc *tx_descs;
 static struct buffer *rx_buffers;
 static struct buffer *tx_buffers;
 
-static uint32_t read_reg32(uint32_t offset) {
-    return io_read32(io, offset);
-}
-
 static uint8_t read_reg8(uint32_t offset) {
     uint32_t aligned_offset = offset & 0xfffffffc;
     uint32_t value = io_read32(io, aligned_offset);
     return (value >> ((offset & 0x03) * 8)) & 0xff;
-}
-
-static void write_reg32(uint32_t offset, uint32_t value) {
-    io_write32(io, offset, value);
 }
 
 void e1000_init(struct pci_device *pcidev) {
@@ -53,17 +45,17 @@ void e1000_init(struct pci_device *pcidev) {
         &tx_buffers_paddr);
 
     // Reset the device.
-    write_reg32(REG_CTRL, read_reg32(REG_CTRL) | CTRL_RST);
+    io_write32(io, REG_CTRL, io_read32(io, REG_CTRL) | CTRL_RST);
 
     // Wait until the device gets reset.
-    while ((read_reg32(REG_CTRL) & CTRL_RST) != 0) {}
+    while ((io_read32(io, REG_CTRL) & CTRL_RST) != 0) {}
 
     // Link up!
-    write_reg32(REG_CTRL, read_reg32(REG_CTRL) | CTRL_SLU | CTRL_ASDE);
+    io_write32(io, REG_CTRL, io_read32(io, REG_CTRL) | CTRL_SLU | CTRL_ASDE);
 
     // Fill Multicast Table Array with zeros.
     for (int i = 0; i < 0x80; i++) {
-        write_reg32(REG_MTA_BASE + i * 4, 0);
+        io_write32(io, REG_MTA_BASE + i * 4, 0);
     }
 
     // Initialize RX queue.
@@ -72,29 +64,29 @@ void e1000_init(struct pci_device *pcidev) {
         rx_descs[i].status = 0;
     }
 
-    write_reg32(REG_RDBAL, rx_descs_paddr & 0xffffffff);
-    write_reg32(REG_RDBAH, rx_descs_paddr >> 32);
-    write_reg32(REG_RDLEN, NUM_RX_DESCS * sizeof(struct rx_desc));
-    write_reg32(REG_RDH, 0);
-    write_reg32(REG_RDT, NUM_RX_DESCS);
-    write_reg32(REG_RCTL, RCTL_EN | RCTL_SECRC | RCTL_BSIZE | RCTL_BAM);
+    io_write32(io, REG_RDBAL, rx_descs_paddr & 0xffffffff);
+    io_write32(io, REG_RDBAH, rx_descs_paddr >> 32);
+    io_write32(io, REG_RDLEN, NUM_RX_DESCS * sizeof(struct rx_desc));
+    io_write32(io, REG_RDH, 0);
+    io_write32(io, REG_RDT, NUM_RX_DESCS);
+    io_write32(io, REG_RCTL, RCTL_EN | RCTL_SECRC | RCTL_BSIZE | RCTL_BAM);
 
     // Initialize TX queue.
     for (int i = 0; i < NUM_TX_DESCS; i++) {
         tx_descs[i].paddr = tx_buffers_paddr + i * BUFFER_SIZE;
     }
 
-    write_reg32(REG_TDBAL, tx_descs_paddr & 0xffffffff);
-    write_reg32(REG_TDBAH, tx_descs_paddr >> 32);
-    write_reg32(REG_TDLEN, NUM_TX_DESCS * sizeof(struct tx_desc));
-    write_reg32(REG_TDH, 0);
-    write_reg32(REG_TDT, 0);
-    write_reg32(REG_TCTL, TCTL_EN | TCTL_PSP);
+    io_write32(io, REG_TDBAL, tx_descs_paddr & 0xffffffff);
+    io_write32(io, REG_TDBAH, tx_descs_paddr >> 32);
+    io_write32(io, REG_TDLEN, NUM_TX_DESCS * sizeof(struct tx_desc));
+    io_write32(io, REG_TDH, 0);
+    io_write32(io, REG_TDT, 0);
+    io_write32(io, REG_TCTL, TCTL_EN | TCTL_PSP);
 
     // Enable interrupts.
-    write_reg32(REG_IMS, 0xff);
-    write_reg32(REG_IMC, 0xff);
-    write_reg32(REG_IMS, IMS_RXT0);
+    io_write32(io, REG_IMS, 0xff);
+    io_write32(io, REG_IMC, 0xff);
+    io_write32(io, REG_IMS, IMS_RXT0);
 }
 
 void e1000_transmit(const void *pkt, size_t len) {
@@ -115,13 +107,13 @@ void e1000_transmit(const void *pkt, size_t len) {
 
     // Notify the device.
     tx_current = (tx_current + 1) % NUM_TX_DESCS;
-    write_reg32(REG_TDT, tx_current);
+    io_write32(io, REG_TDT, tx_current);
 
     TRACE("sent %d bytes", len);
 }
 
 void e1000_handle_interrupt(void (*receive)(const void *payload, size_t len)) {
-    uint32_t cause = read_reg32(REG_ICR);
+    uint32_t cause = io_read32(io, REG_ICR);
     if ((cause & ICR_RXT0) != 0) {
         while (true) {
             struct rx_desc *desc = &rx_descs[rx_current];
@@ -136,7 +128,7 @@ void e1000_handle_interrupt(void (*receive)(const void *payload, size_t len)) {
 
             // Tell the device that we've tasked a received packet.
             rx_descs[rx_current].status = 0;
-            write_reg32(REG_RDT, rx_current);
+            io_write32(io, REG_RDT, rx_current);
             rx_current = (rx_current + 1) % (NUM_RX_DESCS);
         }
     }
