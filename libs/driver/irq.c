@@ -1,3 +1,4 @@
+#include <resea/syscall.h>
 #include <driver/irq.h>
 
 error_t irq_acquire(unsigned irq) {

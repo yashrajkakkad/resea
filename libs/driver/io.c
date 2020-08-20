@@ -1,6 +1,32 @@
+#include <resea/ipc.h>
+#include <resea/malloc.h>
+#include <resea/printf.h>
 #include <driver/io.h>
 
-void io_out8(io_t io, offset_t offset, uint8_t value) {
+io_t io_alloc_port(unsigned long base, size_t len, unsigned flags) {
+    NYI();
+}
+
+io_t io_alloc_memory(size_t len, unsigned flags) {
+    return io_alloc_memory_fixed(0, len, flags);
+}
+
+io_t io_alloc_memory_fixed(paddr_t paddr, size_t len, unsigned flags) {
+    struct message m;
+    m.type = ALLOC_PAGES_MSG;
+    m.alloc_pages.paddr = paddr;
+    m.alloc_pages.num_pages = ALIGN_UP(len, PAGE_SIZE)/ PAGE_SIZE;
+    error_t err = ipc_call(INIT_TASK, &m);
+    ASSERT_OK(err);
+    ASSERT(m.type == ALLOC_PAGES_REPLY_MSG);
+
+    struct io *io = malloc(sizeof(*io));
+    io->memory.paddr = m.alloc_pages_reply.paddr;
+    io->memory.vaddr = m.alloc_pages_reply.vaddr;
+    return io;
+}
+
+void io_write8(io_t io, offset_t offset, uint8_t value) {
     switch (io->space) {
         case IO_SPACE_IO:
 #ifdef ARCH_X64
@@ -10,12 +36,12 @@ void io_out8(io_t io, offset_t offset, uint8_t value) {
             PANIC("port-mapped I/O is not supported");
 #endif
         case IO_SPACE_MEMORY:
-            *((volatile uint8_t *) (io->memory.base + offset)) = value;
+            *((volatile uint8_t *) (io->memory.vaddr + offset)) = value;
             break;
     }
 }
 
-void io_out16(io_t io, offset_t offset, uint16_t value) {
+void io_write16(io_t io, offset_t offset, uint16_t value) {
     switch (io->space) {
         case IO_SPACE_IO:
 #ifdef ARCH_X64
@@ -25,12 +51,12 @@ void io_out16(io_t io, offset_t offset, uint16_t value) {
             PANIC("port-mapped I/O is not supported");
 #endif
         case IO_SPACE_MEMORY:
-            *((volatile uint16_t *) (io->memory.base + offset)) = value;
+            *((volatile uint16_t *) (io->memory.vaddr + offset)) = value;
             break;
     }
 }
 
-void io_out32(io_t io, offset_t offset, uint32_t value) {
+void io_write32(io_t io, offset_t offset, uint32_t value) {
     switch (io->space) {
         case IO_SPACE_IO:
 #ifdef ARCH_X64
@@ -40,12 +66,12 @@ void io_out32(io_t io, offset_t offset, uint32_t value) {
             PANIC("port-mapped I/O is not supported");
 #endif
         case IO_SPACE_MEMORY:
-            *((volatile uint32_t *) (io->memory.base + offset)) = value;
+            *((volatile uint32_t *) (io->memory.vaddr + offset)) = value;
             break;
     }
 }
 
-uint8_t io_in8(io_t io, offset_t offset) {
+uint8_t io_read8(io_t io, offset_t offset) {
     switch (io->space) {
         case IO_SPACE_IO: {
 #ifdef ARCH_X64
@@ -57,11 +83,11 @@ uint8_t io_in8(io_t io, offset_t offset) {
 #endif
         }
         case IO_SPACE_MEMORY:
-            return *((volatile uint8_t *) (io->memory.base + offset));
+            return *((volatile uint8_t *) (io->memory.vaddr + offset));
     }
 }
 
-uint16_t io_in16(io_t io, offset_t offset) {
+uint16_t io_read16(io_t io, offset_t offset) {
     switch (io->space) {
         case IO_SPACE_IO: {
 #ifdef ARCH_X64
@@ -73,11 +99,11 @@ uint16_t io_in16(io_t io, offset_t offset) {
 #endif
         }
         case IO_SPACE_MEMORY:
-            return *((volatile uint16_t *) (io->memory.base + offset));
+            return *((volatile uint16_t *) (io->memory.vaddr + offset));
     }
 }
 
-uint32_t io_in32(io_t io, offset_t offset) {
+uint32_t io_read32(io_t io, offset_t offset) {
     switch (io->space) {
         case IO_SPACE_IO: {
 #ifdef ARCH_X64
@@ -89,6 +115,6 @@ uint32_t io_in32(io_t io, offset_t offset) {
 #endif
         }
         case IO_SPACE_MEMORY:
-            return *((volatile uint32_t *) (io->memory.base + offset));
+            return *((volatile uint32_t *) (io->memory.vaddr + offset));
     }
 }

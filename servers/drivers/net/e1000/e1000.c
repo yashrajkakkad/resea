@@ -2,11 +2,12 @@
 #include <resea/malloc.h>
 #include <resea/printf.h>
 #include <driver/io.h>
+#include <resea/io.h>
 #include <string.h>
 #include "e1000.h"
 #include "pci.h"
 
-static uintptr_t regs;
+io_t io;
 static uint32_t tx_current;
 static uint32_t rx_current;
 static struct rx_desc *rx_descs;
@@ -15,27 +16,23 @@ static struct buffer *rx_buffers;
 static struct buffer *tx_buffers;
 
 static uint32_t read_reg32(uint32_t offset) {
-    memory_barrier();
-    return *((volatile uint32_t *) (regs + offset));
+    return io_read32(io, offset);
 }
 
 static uint8_t read_reg8(uint32_t offset) {
-    memory_barrier();
     uint32_t aligned_offset = offset & 0xfffffffc;
-    uint32_t value = read_reg32(aligned_offset);
+    uint32_t value = io_read32(io, aligned_offset);
     return (value >> ((offset & 0x03) * 8)) & 0xff;
 }
 
 static void write_reg32(uint32_t offset, uint32_t value) {
-    *((volatile uint32_t *) (regs + offset)) = value;
-    memory_barrier();
+    io_write32(io, offset, value);
 }
 
 void e1000_init(struct pci_device *pcidev) {
     // Map memory-mapped registers in our address space.
-    int num_regs_pages = 8;
-    paddr_t paddr;
-    regs = (uintptr_t) io_alloc_pages(num_regs_pages, pcidev->bar0, &paddr);
+    int num_regs_pages = 8; // FIXME:
+    io_alloc_memory_fixed(pcidev->bar0, num_regs_pages * PAGE_SIZE, IO_ALLOC_CONTINUOUS);
 
     // Allocate memory pages for memory-mapped IO.
     paddr_t rx_descs_paddr;

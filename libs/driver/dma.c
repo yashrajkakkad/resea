@@ -1,5 +1,6 @@
 #include <resea/ipc.h>
 #include <resea/malloc.h>
+#include <resea/printf.h>
 #include <driver/dma.h>
 
 /// Allocates a DMA area which is accessible from the DMA controller.

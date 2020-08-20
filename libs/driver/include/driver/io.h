@@ -15,16 +15,19 @@ struct io {
             unsigned long base;
         } port;
         struct {
-            paddr_t base;
+            vaddr_t vaddr;
+            paddr_t paddr;
         } memory;
     };
 };
 
 typedef struct io *io_t;
 
-io_t offset_alloc_port(unsigned long base, size_t len, unsigned flags);
-io_t offset_alloc_memory(size_t len, unsigned flags);
-io_t offset_alloc_memory_fixed(paddr_t paddr, size_t len, unsigned flags);
+#define IO_ALLOC_CONTINUOUS 1
+
+io_t io_alloc_port(unsigned long base, size_t len, unsigned flags);
+io_t io_alloc_memory(size_t len, unsigned flags);
+io_t io_alloc_memory_fixed(paddr_t paddr, size_t len, unsigned flags);
 void io_write8(io_t io, offset_t offset, uint8_t value);
 void io_write16(io_t io, offset_t offset, uint16_t value);
 void io_write32(io_t io, offset_t offset, uint32_t value);
