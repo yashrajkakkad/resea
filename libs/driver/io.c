@@ -30,6 +30,16 @@ io_t io_alloc_memory_fixed(paddr_t paddr, size_t len, unsigned flags) {
     return io;
 }
 
+paddr_t io_paddr(io_t io) {
+    ASSERT(io->space == IO_SPACE_MEMORY);
+    return io->memory.paddr;
+}
+
+vaddr_t io_vaddr(io_t io) {
+    ASSERT(io->space == IO_SPACE_MEMORY);
+    return io->memory.vaddr;
+}
+
 void io_write8(io_t io, offset_t offset, uint8_t value) {
     switch (io->space) {
         case IO_SPACE_IO:

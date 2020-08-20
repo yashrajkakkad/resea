@@ -28,6 +28,8 @@ typedef struct io *io_t;
 io_t io_alloc_port(unsigned long base, size_t len, unsigned flags);
 io_t io_alloc_memory(size_t len, unsigned flags);
 io_t io_alloc_memory_fixed(paddr_t paddr, size_t len, unsigned flags);
+paddr_t io_paddr(io_t io);
+vaddr_t io_vaddr(io_t io);
 void io_write8(io_t io, offset_t offset, uint8_t value);
 void io_write16(io_t io, offset_t offset, uint16_t value);
 void io_write32(io_t io, offset_t offset, uint32_t value);
