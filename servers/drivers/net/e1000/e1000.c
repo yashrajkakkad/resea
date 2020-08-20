@@ -24,7 +24,7 @@ static uint8_t read_reg8(uint32_t offset) {
 void e1000_init(struct pci_device *pcidev) {
     // Map memory-mapped registers in our address space.
     int num_regs_pages = 8; // FIXME:
-    io_alloc_memory_fixed(pcidev->bar0, num_regs_pages * PAGE_SIZE, IO_ALLOC_CONTINUOUS);
+    io = io_alloc_memory_fixed(pcidev->bar0, num_regs_pages * PAGE_SIZE, IO_ALLOC_CONTINUOUS);
 
     // Allocate memory pages for memory-mapped IO.
     paddr_t rx_descs_paddr;

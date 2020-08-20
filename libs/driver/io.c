@@ -4,7 +4,10 @@
 #include <driver/io.h>
 
 io_t io_alloc_port(unsigned long base, size_t len, unsigned flags) {
-    NYI();
+    struct io *io = malloc(sizeof(*io));
+    io->space = IO_SPACE_MEMORY;
+    io->port.base = base;
+    return io;
 }
 
 io_t io_alloc_memory(size_t len, unsigned flags) {
@@ -21,6 +24,7 @@ io_t io_alloc_memory_fixed(paddr_t paddr, size_t len, unsigned flags) {
     ASSERT(m.type == ALLOC_PAGES_REPLY_MSG);
 
     struct io *io = malloc(sizeof(*io));
+    io->space = IO_SPACE_MEMORY;
     io->memory.paddr = m.alloc_pages_reply.paddr;
     io->memory.vaddr = m.alloc_pages_reply.vaddr;
     return io;
