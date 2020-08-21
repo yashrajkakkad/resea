@@ -112,7 +112,10 @@ void e1000_transmit(const void *pkt, size_t len) {
 
     // Notify the device.
     tx_current = (tx_current + 1) % NUM_TX_DESCS;
+    dma_begin(tx_buffers_dma);
     io_write32(regs_io, REG_TDT, tx_current);
+
+    // TODO: dma_read(tx_buffers_dma);
 
     TRACE("sent %d bytes", len);
 }
@@ -129,7 +132,9 @@ void e1000_handle_interrupt(void (*receive)(const void *payload, size_t len)) {
                 break;
             }
 
+            dma_begin(rx_buffers_dma);
             receive(rx_buffers[rx_current].data, desc->len);
+            dma_end(rx_buffers_dma);
 
             // Tell the device that we've tasked a received packet.
             rx_descs[rx_current].status = 0;
