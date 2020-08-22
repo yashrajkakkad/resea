@@ -37,13 +37,13 @@ void main(void) {
     }
 
     INFO("found a e1000 device (bus=%d, slot=%d, bar0=%x, irq=%d)", pcidev.bus,
-         pcidev.slot, pcidev.bar0, pcidev.irq);
+         pcidev.slot, pcidev.bar0_addr, pcidev.irq);
 
     // Initialize the device and listen for IRQ messages.
     err = irq_acquire(pcidev.irq);
     ASSERT_OK(err);
     pci_enable_bus_master(&pcidev);
-    e1000_init(&pcidev);
+    e1000_init_for_pci(&pcidev);
 
     uint8_t mac[6];
     e1000_read_macaddr((uint8_t *) &mac);

@@ -12,7 +12,8 @@ struct dma {
 
 typedef struct dma *dma_t;
 
-#define DMA_ALLOC_CONTINUOUS 1
+#define DMA_ALLOC_TO_DEVICE   (1 << 0)
+#define DMA_ALLOC_FROM_DEVICE (1 << 1)
 
 dma_t dma_alloc(size_t len, unsigned flags);
 void dma_free(dma_t dma);

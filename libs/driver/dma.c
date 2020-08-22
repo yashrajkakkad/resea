@@ -29,7 +29,6 @@ void dma_free(dma_t dma) {
 /// Performs arch-specific pre-DMA work.
 void dma_begin(dma_t dma) {
     // Add arch-specific task with #ifdef if you need.
-
 }
 
 /// Performs arch-specific post-DMA work.
@@ -37,7 +36,7 @@ void dma_end(dma_t dma) {
     // Add arch-specific task with #ifdef if you need.
 }
 
-/// Returns the "device" address, which is accessible from the DMA controller.
+/// Returns the "device" or "bus" address, which is accessible from the DMA controller.
 daddr_t dma_daddr(dma_t dma) {
     return dma->daddr;
 }

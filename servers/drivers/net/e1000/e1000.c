@@ -25,75 +25,6 @@ static uint8_t read_reg8(uint32_t offset) {
     return (value >> ((offset & 0x03) * 8)) & 0xff;
 }
 
-void e1000_init(struct pci_device *pcidev) {
-    // Map memory-mapped registers in our address space.
-    int num_regs_pages = 8; // FIXME:
-    regs_io = io_alloc_memory_fixed(pcidev->bar0, num_regs_pages * PAGE_SIZE, IO_ALLOC_CONTINUOUS);
-
-    // Allocate memory pages for memory-mapped IO.
-    rx_descs_io =
-        io_alloc_memory(sizeof(struct rx_desc) * NUM_RX_DESCS, IO_ALLOC_CONTINUOUS);
-    tx_descs_io =
-        io_alloc_memory(sizeof(struct tx_desc) * NUM_TX_DESCS, IO_ALLOC_CONTINUOUS);
-    rx_buffers_dma =
-        dma_alloc(BUFFER_SIZE * NUM_RX_DESCS, DMA_ALLOC_CONTINUOUS);
-    tx_buffers_dma =
-        dma_alloc(BUFFER_SIZE * NUM_TX_DESCS, DMA_ALLOC_CONTINUOUS);
-
-    rx_descs = (struct rx_desc *) io_vaddr(rx_descs_io);
-    tx_descs = (struct tx_desc *) io_vaddr(tx_descs_io);
-    rx_buffers = (struct buffer *) dma_vaddr(rx_buffers_dma);
-    tx_buffers = (struct buffer *) dma_vaddr(tx_buffers_dma);
-    paddr_t rx_descs_paddr = io_paddr(rx_descs_io);
-    paddr_t tx_descs_paddr = io_paddr(tx_descs_io);
-    paddr_t rx_buffers_paddr = dma_daddr(rx_buffers_dma);
-    paddr_t tx_buffers_paddr = dma_daddr(tx_buffers_dma);
-
-    // Reset the device.
-    io_write32(regs_io, REG_CTRL, io_read32(regs_io, REG_CTRL) | CTRL_RST);
-
-    // Wait until the device gets reset.
-    while ((io_read32(regs_io, REG_CTRL) & CTRL_RST) != 0) {}
-
-    // Link up!
-    io_write32(regs_io, REG_CTRL, io_read32(regs_io, REG_CTRL) | CTRL_SLU | CTRL_ASDE);
-
-    // Fill Multicast Table Array with zeros.
-    for (int i = 0; i < 0x80; i++) {
-        io_write32(regs_io, REG_MTA_BASE + i * 4, 0);
-    }
-
-    // Initialize RX queue.
-    for (int i = 0; i < NUM_RX_DESCS; i++) {
-        rx_descs[i].paddr = rx_buffers_paddr + i * BUFFER_SIZE;
-        rx_descs[i].status = 0;
-    }
-
-    io_write32(regs_io, REG_RDBAL, rx_descs_paddr & 0xffffffff);
-    io_write32(regs_io, REG_RDBAH, rx_descs_paddr >> 32);
-    io_write32(regs_io, REG_RDLEN, NUM_RX_DESCS * sizeof(struct rx_desc));
-    io_write32(regs_io, REG_RDH, 0);
-    io_write32(regs_io, REG_RDT, NUM_RX_DESCS);
-    io_write32(regs_io, REG_RCTL, RCTL_EN | RCTL_SECRC | RCTL_BSIZE | RCTL_BAM);
-
-    // Initialize TX queue.
-    for (int i = 0; i < NUM_TX_DESCS; i++) {
-        tx_descs[i].paddr = tx_buffers_paddr + i * BUFFER_SIZE;
-    }
-
-    io_write32(regs_io, REG_TDBAL, tx_descs_paddr & 0xffffffff);
-    io_write32(regs_io, REG_TDBAH, tx_descs_paddr >> 32);
-    io_write32(regs_io, REG_TDLEN, NUM_TX_DESCS * sizeof(struct tx_desc));
-    io_write32(regs_io, REG_TDH, 0);
-    io_write32(regs_io, REG_TDT, 0);
-    io_write32(regs_io, REG_TCTL, TCTL_EN | TCTL_PSP);
-
-    // Enable interrupts.
-    io_write32(regs_io, REG_IMS, 0xff);
-    io_write32(regs_io, REG_IMC, 0xff);
-    io_write32(regs_io, REG_IMS, IMS_RXT0);
-}
-
 void e1000_transmit(const void *pkt, size_t len) {
     ASSERT(len <= BUFFER_SIZE);
 
@@ -152,4 +83,75 @@ void e1000_read_macaddr(uint8_t *macaddr) {
     for (int i = 0; i < 2; i++) {
         macaddr[4 + i] = read_reg8(REG_RECEIVE_ADDR_HIGH + i);
     }
+}
+
+static void e1000_init(void) {
+    rx_descs = (struct rx_desc *) io_vaddr(rx_descs_io);
+    tx_descs = (struct tx_desc *) io_vaddr(tx_descs_io);
+    rx_buffers = (struct buffer *) dma_vaddr(rx_buffers_dma);
+    tx_buffers = (struct buffer *) dma_vaddr(tx_buffers_dma);
+    paddr_t rx_descs_paddr = io_paddr(rx_descs_io);
+    paddr_t tx_descs_paddr = io_paddr(tx_descs_io);
+    paddr_t rx_buffers_paddr = dma_daddr(rx_buffers_dma);
+    paddr_t tx_buffers_paddr = dma_daddr(tx_buffers_dma);
+
+    // Reset the device.
+    io_write32(regs_io, REG_CTRL, io_read32(regs_io, REG_CTRL) | CTRL_RST);
+
+    // Wait until the device gets reset.
+    while ((io_read32(regs_io, REG_CTRL) & CTRL_RST) != 0) {}
+
+    // Link up!
+    io_write32(regs_io, REG_CTRL, io_read32(regs_io, REG_CTRL) | CTRL_SLU | CTRL_ASDE);
+
+    // Fill Multicast Table Array with zeros.
+    for (int i = 0; i < 0x80; i++) {
+        io_write32(regs_io, REG_MTA_BASE + i * 4, 0);
+    }
+
+    // Initialize RX queue.
+    for (int i = 0; i < NUM_RX_DESCS; i++) {
+        rx_descs[i].paddr = rx_buffers_paddr + i * BUFFER_SIZE;
+        rx_descs[i].status = 0;
+    }
+
+    io_write32(regs_io, REG_RDBAL, rx_descs_paddr & 0xffffffff);
+    io_write32(regs_io, REG_RDBAH, rx_descs_paddr >> 32);
+    io_write32(regs_io, REG_RDLEN, NUM_RX_DESCS * sizeof(struct rx_desc));
+    io_write32(regs_io, REG_RDH, 0);
+    io_write32(regs_io, REG_RDT, NUM_RX_DESCS);
+    io_write32(regs_io, REG_RCTL, RCTL_EN | RCTL_SECRC | RCTL_BSIZE | RCTL_BAM);
+
+    // Initialize TX queue.
+    for (int i = 0; i < NUM_TX_DESCS; i++) {
+        tx_descs[i].paddr = tx_buffers_paddr + i * BUFFER_SIZE;
+    }
+
+    io_write32(regs_io, REG_TDBAL, tx_descs_paddr & 0xffffffff);
+    io_write32(regs_io, REG_TDBAH, tx_descs_paddr >> 32);
+    io_write32(regs_io, REG_TDLEN, NUM_TX_DESCS * sizeof(struct tx_desc));
+    io_write32(regs_io, REG_TDH, 0);
+    io_write32(regs_io, REG_TDT, 0);
+    io_write32(regs_io, REG_TCTL, TCTL_EN | TCTL_PSP);
+
+    // Enable interrupts.
+    io_write32(regs_io, REG_IMS, 0xff);
+    io_write32(regs_io, REG_IMC, 0xff);
+    io_write32(regs_io, REG_IMS, IMS_RXT0);
+}
+
+
+void e1000_init_for_pci(struct pci_device *pcidev) {
+    regs_io = io_alloc_memory_fixed(pcidev->bar0_addr, pcidev->bar0_len,
+                                    IO_ALLOC_CONTINUOUS);
+    rx_descs_io = io_alloc_memory(sizeof(struct rx_desc) * NUM_RX_DESCS,
+                                  IO_ALLOC_CONTINUOUS);
+    tx_descs_io = io_alloc_memory(sizeof(struct tx_desc) * NUM_TX_DESCS,
+                                  IO_ALLOC_CONTINUOUS);
+    rx_buffers_dma = dma_alloc(BUFFER_SIZE * NUM_RX_DESCS,
+                               DMA_ALLOC_FROM_DEVICE);
+    tx_buffers_dma = dma_alloc(BUFFER_SIZE * NUM_TX_DESCS,
+                               DMA_ALLOC_TO_DEVICE);
+
+    e1000_init();
 }

@@ -45,11 +45,22 @@ bool pci_find_device(struct pci_device *dev, uint16_t vendor, uint16_t device) {
                 continue;
             }
 
+            uint32_t bar0_addr = read32(bus, slot, PCI_CONFIG_BAR0);
+
+            // Determine the size of the space.
+            // https://wiki.osdev.org/PCI#Base_Address_Registers
+            write32(bus, slot, PCI_CONFIG_BAR0, 0xffffffff);
+            uint32_t bar0_len = ~(read32(bus, slot, PCI_CONFIG_BAR0) & (~0xf)) + 1;
+
+            // Restore the original value.
+            write32(bus, slot, PCI_CONFIG_BAR0, bar0_addr);
+
             dev->bus = bus;
             dev->slot = slot;
             dev->vendor = vendor2;
             dev->device = device2;
-            dev->bar0 = read32(bus, slot, PCI_CONFIG_BAR0);
+            dev->bar0_addr = bar0_addr;
+            dev->bar0_len = bar0_len;
             dev->irq = read8(bus, slot, PCI_CONFIG_INTR_LINE);
             return true;
         }

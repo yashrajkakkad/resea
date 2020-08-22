@@ -18,7 +18,8 @@ struct pci_device {
     uint8_t slot;
     uint16_t vendor;
     uint16_t device;
-    uint32_t bar0;
+    uint32_t bar0_addr;
+    uint32_t bar0_len;
     uint8_t irq;
 };
 
