@@ -5,7 +5,6 @@
 #include <driver/dma.h>
 #include <string.h>
 #include "e1000.h"
-#include "pci.h"
 
 io_t regs_io;
 static io_t rx_descs_io;
@@ -141,9 +140,8 @@ static void e1000_init(void) {
 }
 
 
-void e1000_init_for_pci(struct pci_device *pcidev) {
-    regs_io = io_alloc_memory_fixed(pcidev->bar0_addr, pcidev->bar0_len,
-                                    IO_ALLOC_CONTINUOUS);
+void e1000_init_for_pci(uint32_t bar0_addr, uint32_t bar0_len) {
+    regs_io = io_alloc_memory_fixed(bar0_addr, bar0_len, IO_ALLOC_CONTINUOUS);
     rx_descs_io = io_alloc_memory(sizeof(struct rx_desc) * NUM_RX_DESCS,
                                   IO_ALLOC_CONTINUOUS);
     tx_descs_io = io_alloc_memory(sizeof(struct tx_desc) * NUM_TX_DESCS,

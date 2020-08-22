@@ -5,7 +5,7 @@
 
 io_t io_alloc_port(unsigned long base, size_t len, unsigned flags) {
     struct io *io = malloc(sizeof(*io));
-    io->space = IO_SPACE_MEMORY;
+    io->space = IO_SPACE_IO;
     io->port.base = base;
     return io;
 }
@@ -31,24 +31,29 @@ io_t io_alloc_memory_fixed(paddr_t paddr, size_t len, unsigned flags) {
 }
 
 paddr_t io_paddr(io_t io) {
-    ASSERT(io->space == IO_SPACE_MEMORY);
+    DEBUG_ASSERT(io != NULL);
+    DEBUG_ASSERT(io->space == IO_SPACE_MEMORY);
     return io->memory.paddr;
 }
 
 vaddr_t io_vaddr(io_t io) {
-    ASSERT(io->space == IO_SPACE_MEMORY);
+    DEBUG_ASSERT(io != NULL);
+    DEBUG_ASSERT(io->space == IO_SPACE_MEMORY);
     return io->memory.vaddr;
 }
 
 void io_write8(io_t io, offset_t offset, uint8_t value) {
+    DEBUG_ASSERT(io != NULL);
     switch (io->space) {
-        case IO_SPACE_IO:
-#ifdef ARCH_X64
+        case IO_SPACE_IO: {
+#ifdef CONFIG_ARCH_X64
+            uint16_t port = io->port.base + offset;
             __asm__ __volatile__("outb %0, %1" :: "a"(value), "Nd"(port));
             break;
 #else
             PANIC("port-mapped I/O is not supported");
 #endif
+        }
         case IO_SPACE_MEMORY:
             *((volatile uint8_t *) (io->memory.vaddr + offset)) = value;
             break;
@@ -56,14 +61,17 @@ void io_write8(io_t io, offset_t offset, uint8_t value) {
 }
 
 void io_write16(io_t io, offset_t offset, uint16_t value) {
+    DEBUG_ASSERT(io != NULL);
     switch (io->space) {
-        case IO_SPACE_IO:
-#ifdef ARCH_X64
+        case IO_SPACE_IO: {
+#ifdef CONFIG_ARCH_X64
+            uint16_t port = io->port.base + offset;
             __asm__ __volatile__("outw %0, %1" :: "a"(value), "Nd"(port));
             break;
 #else
             PANIC("port-mapped I/O is not supported");
 #endif
+        }
         case IO_SPACE_MEMORY:
             *((volatile uint16_t *) (io->memory.vaddr + offset)) = value;
             break;
@@ -71,14 +79,17 @@ void io_write16(io_t io, offset_t offset, uint16_t value) {
 }
 
 void io_write32(io_t io, offset_t offset, uint32_t value) {
+    DEBUG_ASSERT(io != NULL);
     switch (io->space) {
-        case IO_SPACE_IO:
-#ifdef ARCH_X64
+        case IO_SPACE_IO: {
+#ifdef CONFIG_ARCH_X64
+            uint16_t port = io->port.base + offset;
             __asm__ __volatile__("outl %0, %1" :: "a"(value), "Nd"(port));
             break;
 #else
             PANIC("port-mapped I/O is not supported");
 #endif
+        }
         case IO_SPACE_MEMORY:
             *((volatile uint32_t *) (io->memory.vaddr + offset)) = value;
             break;
@@ -86,10 +97,12 @@ void io_write32(io_t io, offset_t offset, uint32_t value) {
 }
 
 uint8_t io_read8(io_t io, offset_t offset) {
+    DEBUG_ASSERT(io != NULL);
     switch (io->space) {
         case IO_SPACE_IO: {
-#ifdef ARCH_X64
+#ifdef CONFIG_ARCH_X64
             uint8_t value;
+            uint16_t port = io->port.base + offset;
             __asm__ __volatile__("inb %1, %0" : "=a"(value) : "Nd"(port));
             return value;
 #else
@@ -102,10 +115,12 @@ uint8_t io_read8(io_t io, offset_t offset) {
 }
 
 uint16_t io_read16(io_t io, offset_t offset) {
+    DEBUG_ASSERT(io != NULL);
     switch (io->space) {
         case IO_SPACE_IO: {
-#ifdef ARCH_X64
+#ifdef CONFIG_ARCH_X64
             uint16_t value;
+            uint16_t port = io->port.base + offset;
             __asm__ __volatile__("inw %1, %0" : "=a"(value) : "Nd"(port));
             return value;
 #else
@@ -118,10 +133,12 @@ uint16_t io_read16(io_t io, offset_t offset) {
 }
 
 uint32_t io_read32(io_t io, offset_t offset) {
+    DEBUG_ASSERT(io != NULL);
     switch (io->space) {
         case IO_SPACE_IO: {
-#ifdef ARCH_X64
+#ifdef CONFIG_ARCH_X64
             uint32_t value;
+            uint16_t port = io->port.base + offset;
             __asm__ __volatile__("inl %1, %0" : "=a"(value) : "Nd"(port));
             return value;
 #else
