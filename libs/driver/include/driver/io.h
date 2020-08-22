@@ -23,6 +23,7 @@ struct io {
 
 typedef struct io *io_t;
 
+#define IO_ALLOC_NORMAL     0
 #define IO_ALLOC_CONTINUOUS 1
 
 io_t io_alloc_port(unsigned long base, size_t len, unsigned flags);
