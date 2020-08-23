@@ -8,7 +8,7 @@ dma_t dma_alloc(size_t len, unsigned flags) {
     struct message m;
     m.type = ALLOC_PAGES_MSG;
     m.alloc_pages.paddr = 0;
-    m.alloc_pages.num_pages = ALIGN_UP(len, PAGE_SIZE)/ PAGE_SIZE;
+    m.alloc_pages.num_pages = ALIGN_UP(len, PAGE_SIZE) / PAGE_SIZE;
     error_t err = ipc_call(INIT_TASK, &m);
     ASSERT_OK(err);
     ASSERT(m.type == ALLOC_PAGES_REPLY_MSG);
