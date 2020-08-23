@@ -27,6 +27,10 @@
 - [Kernel Development](kernel/README.md)
   - [Debugging](kernel/debugging.md)
 
+- [BareMetal CI](baremetal-ci/README.md)
+  - [Master Setup](baremetal-ci/master-setup.md)
+  - [Node Setup (Raspberry Pi 3)](baremetal-ci/raspi3-setup.md)
+
 - [Porting to a CPU Architecture](porting.md)
 - [Common Library (libs/common)](libcommon.md)
 - [Boot Sequence](boot-sequence.md)
