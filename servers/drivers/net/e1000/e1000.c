@@ -6,9 +6,9 @@
 #include <string.h>
 #include "e1000.h"
 
-io_t regs_io;
-static io_t rx_descs_io;
-static io_t tx_descs_io;
+static io_t regs_io;
+static dma_t rx_descs_dma;
+static dma_t tx_descs_dma;
 static dma_t rx_buffers_dma;
 static dma_t tx_buffers_dma;
 static struct rx_desc *rx_descs;
@@ -44,6 +44,8 @@ void e1000_transmit(const void *pkt, size_t len) {
     // Notify the device.
     tx_current = (tx_current + 1) % NUM_TX_DESCS;
     io_write32(regs_io, REG_TDT, tx_current);
+
+    dma_flush_write(tx_descs_dma);
     io_flush_write(regs_io);
 
     // TODO: dma_read(tx_buffers_dma);
@@ -56,6 +58,7 @@ void e1000_handle_interrupt(void (*receive)(const void *payload, size_t len)) {
     uint32_t cause = io_read32(regs_io, REG_ICR);
     if ((cause & ICR_RXT0) != 0) {
         while (true) {
+            dma_flush_read(rx_descs_dma);
             struct rx_desc *desc = &rx_descs[rx_current];
 
             // We don't support a large packet which spans multiple descriptors.
@@ -89,14 +92,10 @@ void e1000_read_macaddr(uint8_t *macaddr) {
 }
 
 static void e1000_init(void) {
-    rx_descs = (struct rx_desc *) io_vaddr(rx_descs_io);
-    tx_descs = (struct tx_desc *) io_vaddr(tx_descs_io);
+    rx_descs = (struct rx_desc *) dma_vaddr(rx_descs_dma);
+    tx_descs = (struct tx_desc *) dma_vaddr(tx_descs_dma);
     rx_buffers = (struct buffer *) dma_vaddr(rx_buffers_dma);
     tx_buffers = (struct buffer *) dma_vaddr(tx_buffers_dma);
-    paddr_t rx_descs_paddr = io_paddr(rx_descs_io);
-    paddr_t tx_descs_paddr = io_paddr(tx_descs_io);
-    paddr_t rx_buffers_paddr = dma_daddr(rx_buffers_dma);
-    paddr_t tx_buffers_paddr = dma_daddr(tx_buffers_dma);
 
     // Reset the device.
     io_write32(regs_io, REG_CTRL, io_read32(regs_io, REG_CTRL) | CTRL_RST);
@@ -114,12 +113,12 @@ static void e1000_init(void) {
 
     // Initialize RX queue.
     for (int i = 0; i < NUM_RX_DESCS; i++) {
-        rx_descs[i].paddr = rx_buffers_paddr + i * BUFFER_SIZE;
+        rx_descs[i].paddr = dma_daddr(rx_buffers_dma) + i * BUFFER_SIZE;
         rx_descs[i].status = 0;
     }
 
-    io_write32(regs_io, REG_RDBAL, rx_descs_paddr & 0xffffffff);
-    io_write32(regs_io, REG_RDBAH, rx_descs_paddr >> 32);
+    io_write32(regs_io, REG_RDBAL, dma_daddr(rx_descs_dma) & 0xffffffff);
+    io_write32(regs_io, REG_RDBAH, dma_daddr(rx_descs_dma) >> 32);
     io_write32(regs_io, REG_RDLEN, NUM_RX_DESCS * sizeof(struct rx_desc));
     io_write32(regs_io, REG_RDH, 0);
     io_write32(regs_io, REG_RDT, NUM_RX_DESCS);
@@ -127,11 +126,11 @@ static void e1000_init(void) {
 
     // Initialize TX queue.
     for (int i = 0; i < NUM_TX_DESCS; i++) {
-        tx_descs[i].paddr = tx_buffers_paddr + i * BUFFER_SIZE;
+        tx_descs[i].paddr = dma_daddr(tx_buffers_dma) + i * BUFFER_SIZE;
     }
 
-    io_write32(regs_io, REG_TDBAL, tx_descs_paddr & 0xffffffff);
-    io_write32(regs_io, REG_TDBAH, tx_descs_paddr >> 32);
+    io_write32(regs_io, REG_TDBAL, dma_daddr(tx_descs_dma) & 0xffffffff);
+    io_write32(regs_io, REG_TDBAH, dma_daddr(tx_descs_dma) >> 32);
     io_write32(regs_io, REG_TDLEN, NUM_TX_DESCS * sizeof(struct tx_desc));
     io_write32(regs_io, REG_TDH, 0);
     io_write32(regs_io, REG_TDT, 0);
@@ -147,10 +146,10 @@ static void e1000_init(void) {
 
 void e1000_init_for_pci(uint32_t bar0_addr, uint32_t bar0_len) {
     regs_io = io_alloc_memory_fixed(bar0_addr, bar0_len, IO_ALLOC_CONTINUOUS);
-    rx_descs_io = io_alloc_memory(sizeof(struct rx_desc) * NUM_RX_DESCS,
-                                  IO_ALLOC_CONTINUOUS);
-    tx_descs_io = io_alloc_memory(sizeof(struct tx_desc) * NUM_TX_DESCS,
-                                  IO_ALLOC_CONTINUOUS);
+    rx_descs_dma = dma_alloc(sizeof(struct rx_desc) * NUM_RX_DESCS,
+                             DMA_ALLOC_FROM_DEVICE);
+    tx_descs_dma = dma_alloc(sizeof(struct tx_desc) * NUM_TX_DESCS,
+                             DMA_ALLOC_TO_DEVICE);
     rx_buffers_dma = dma_alloc(BUFFER_SIZE * NUM_RX_DESCS,
                                DMA_ALLOC_FROM_DEVICE);
     tx_buffers_dma = dma_alloc(BUFFER_SIZE * NUM_TX_DESCS,

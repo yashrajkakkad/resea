@@ -2,7 +2,7 @@
 #include <resea/async.h>
 #include <resea/malloc.h>
 #include <resea/printf.h>
-#include <resea/io.h>
+#include <driver/irq.h>
 #include <string.h>
 #include "e1000.h"
 
