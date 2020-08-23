@@ -17,8 +17,8 @@ typedef struct dma *dma_t;
 
 dma_t dma_alloc(size_t len, unsigned flags);
 void dma_free(dma_t dma);
-void dma_begin(dma_t dma);
-void dma_end(dma_t dma);
+void dma_flush_write(dma_t dma);
+void dma_flush_read(dma_t dma);
 daddr_t dma_daddr(dma_t dma);
 vaddr_t dma_vaddr(dma_t dma);
 uint8_t *dma_buf(dma_t dma);

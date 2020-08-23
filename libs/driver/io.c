@@ -149,3 +149,14 @@ uint32_t io_read32(io_t io, offset_t offset) {
             return *((volatile uint32_t *) (io->memory.vaddr + offset));
     }
 }
+
+/// Performs arch-specific flushing after writing into the DMA area.
+void io_flush_read(io_t io) {
+    // Add arch-specific task with #ifdef if you need.
+}
+
+/// Performs arch-specific flushing before reading from the DMA area.
+void io_flush_write(io_t io) {
+    // Add arch-specific task with #ifdef if you need.
+}
+

@@ -26,13 +26,13 @@ void dma_free(dma_t dma) {
     // TODO:
 }
 
-/// Performs arch-specific pre-DMA work.
-void dma_begin(dma_t dma) {
+/// Performs arch-specific pre-DMA work after writing into the DMA area.
+void dma_flush_write(dma_t dma) {
     // Add arch-specific task with #ifdef if you need.
 }
 
-/// Performs arch-specific post-DMA work.
-void dma_end(dma_t dma) {
+/// Performs arch-specific post-DMA work before reading from the DMA area.
+void dma_flush_read(dma_t dma) {
     // Add arch-specific task with #ifdef if you need.
 }
 
