@@ -29,11 +29,17 @@ void dma_free(dma_t dma) {
 /// Performs arch-specific pre-DMA work after writing into the DMA area.
 void dma_flush_write(dma_t dma) {
     // Add arch-specific task with #ifdef if you need.
+
+    // Prevent reordering the memory access.
+    __sync_synchronize();
 }
 
 /// Performs arch-specific post-DMA work before reading from the DMA area.
 void dma_flush_read(dma_t dma) {
     // Add arch-specific task with #ifdef if you need.
+
+    // Prevent reordering the memory access.
+    __sync_synchronize();
 }
 
 /// Returns the "device" or "bus" address, which is accessible from the DMA controller.
