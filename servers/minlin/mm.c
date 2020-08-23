@@ -1,4 +1,3 @@
-#include <resea/io.h>
 #include <resea/malloc.h>
 #include <resea/task.h>
 #include <string.h>
