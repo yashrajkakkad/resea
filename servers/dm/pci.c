@@ -49,7 +49,6 @@ error_t pci_find_device(uint16_t vendor, uint16_t device, int *bus_out, int *slo
 
             *bus_out = bus;
             *slot_out = slot;
-            DBG("ok");
             return OK;
         }
     }
