@@ -29,6 +29,7 @@ void e1000_transmit(const void *pkt, size_t len) {
 
     // Copy the packet into the TX buffer.
     memcpy(tx_buffers[tx_current].data, pkt, len);
+    dma_flush_write(tx_buffers_dma);
 
     // Set descriptor fields. The buffer address field is already filled
     // during initialization.
@@ -42,8 +43,8 @@ void e1000_transmit(const void *pkt, size_t len) {
 
     // Notify the device.
     tx_current = (tx_current + 1) % NUM_TX_DESCS;
-    dma_begin(tx_buffers_dma);
     io_write32(regs_io, REG_TDT, tx_current);
+    io_flush_write(regs_io);
 
     // TODO: dma_read(tx_buffers_dma);
 
@@ -51,6 +52,7 @@ void e1000_transmit(const void *pkt, size_t len) {
 }
 
 void e1000_handle_interrupt(void (*receive)(const void *payload, size_t len)) {
+    io_flush_read(regs_io);
     uint32_t cause = io_read32(regs_io, REG_ICR);
     if ((cause & ICR_RXT0) != 0) {
         while (true) {
@@ -62,19 +64,21 @@ void e1000_handle_interrupt(void (*receive)(const void *payload, size_t len)) {
                 break;
             }
 
-            dma_begin(rx_buffers_dma);
+            dma_flush_read(rx_buffers_dma);
             receive(rx_buffers[rx_current].data, desc->len);
-            dma_end(rx_buffers_dma);
 
             // Tell the device that we've tasked a received packet.
             rx_descs[rx_current].status = 0;
             io_write32(regs_io, REG_RDT, rx_current);
+            io_flush_write(regs_io);
             rx_current = (rx_current + 1) % (NUM_RX_DESCS);
         }
     }
 }
 
 void e1000_read_macaddr(uint8_t *macaddr) {
+    io_flush_read(regs_io);
+
     for (int i = 0; i < 4; i++) {
         macaddr[i] = read_reg8(REG_RECEIVE_ADDR_LOW + i);
     }
@@ -137,6 +141,7 @@ static void e1000_init(void) {
     io_write32(regs_io, REG_IMS, 0xff);
     io_write32(regs_io, REG_IMC, 0xff);
     io_write32(regs_io, REG_IMS, IMS_RXT0);
+    io_flush_write(regs_io);
 }
 
 
