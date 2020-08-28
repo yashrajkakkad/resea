@@ -11,16 +11,40 @@ extern char arm64_usercopy1[];
 extern char arm64_usercopy2[];
 extern char arm64_usercopy3[];
 
+void puts(const char *s);
+static void puts_hex(const char *s, unsigned long long n) {
+    puts(s);
+    char tmp[32];
+    int i = sizeof(tmp) - 2;
+    do {
+        tmp[i] = "0123456789abcdef"[n % 16];
+        n /= 16;
+        i--;
+    } while (n > 0 && i > 0);
+
+    tmp[sizeof(tmp) - 1] = '\0';
+    puts(&tmp[i + 1]);
+    puts("\n");
+}
+
 void arm64_handle_interrupt(void) {
     arm64_timer_reload();
     handle_timer_irq();
 }
+
 
 void arm64_handle_exception(void) {
     uint64_t esr = ARM64_MRS(esr_el1);
     uint64_t elr = ARM64_MRS(elr_el1);
     uint64_t far = ARM64_MRS(far_el1);
     unsigned ec = esr >> 26;
+
+    // puts("exception\n");
+    // puts_hex("ec=", ec);
+    // puts_hex("elr=", elr);
+    // puts_hex("far=", far);
+    // for(;;);
+
     switch (ec) {
         // SVC.
         case 0x15:

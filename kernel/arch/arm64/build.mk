@@ -12,8 +12,8 @@ QEMUFLAGS += $(if $(GUI),,-nographic)
 QEMUFLAGS += $(if $(GDB),-S -s,)
 
 .PHONY: run
-run: $(kernel_image)
-	$(PROGRESS) "RUN"
+run: $(BUILD_DIR)/kernel8.img
+	$(PROGRESS) "RUN" $<
 	$(QEMU) $(QEMUFLAGS) -kernel $<
 
 # Raspberry Pi's kernel8.img.
