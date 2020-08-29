@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
-@app.get('/')
+@app.get('/api/hello')
 def home():
     return {'hello': 'worwld2'}
 
