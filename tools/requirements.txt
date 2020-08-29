@@ -8,3 +8,9 @@ pyelftools
 # watchmedo internal dependencies
 PyYAML
 argh
+
+# Baremetal CI
+fastapi
+uvicorn
+pymongo
+requests
