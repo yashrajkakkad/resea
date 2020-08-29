@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 import argparse
-import pymongo
+import os
+from pymongo import MongoClient
 from fastapi import FastAPI
 
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "baremental-ci")
+
 app = FastAPI()
+db = MongoClient(MONGO_URI)[MONGO_DB_NAME]
 
 @app.get('/api/hello')
 def home():
-    return {'hello': 'worwld2'}
+    return {'hello': str(db.posts.insert_one({ "asd": 123 }).inserted_id) }
 
 if __name__ == '__main__':
     import uvicorn
