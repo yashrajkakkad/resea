@@ -12,3 +12,4 @@
 *.tmp
 *.pyc
 /servers/*/target
+node_modules
