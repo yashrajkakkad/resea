@@ -27,6 +27,16 @@ def create_build():
 def get_build(id: int):
     pass # TODO:
 
+
+@app.get("/api/runners")
+def list_runners():
+    for x in db.posts.find():
+      print(x)
+
+@app.put("/api/runners/{id}")
+def register_or_update_runner(id: int):
+    pass # TODO:
+
 @app.get("/api/runs")
 def list_runs():
     for x in db.posts.find():

@@ -1,7 +1,24 @@
-import '../styles/globals.css'
+import 'bootstrap/dist/css/bootstrap.min.css';
+import Link from 'next/link';
+import { Navbar, Nav, Container } from 'react-bootstrap';
 
-function MyApp({ Component, pageProps }) {
-  return <Component {...pageProps} />
+export default function App({ Component, pageProps }) {
+    return (
+        <div>
+            <Navbar bg="light">
+            <Navbar.Brand href="#home">BareMetal CI</Navbar.Brand>
+            <Nav className="mr-auto">
+                <Link href="/builds"><Nav.Link>Builds</Nav.Link></Link>
+                <Link href="/tests"><Nav.Link>Tests</Nav.Link></Link>
+                <Link href="/runners"><Nav.Link>Runners</Nav.Link></Link>
+            </Nav>
+            <Nav>
+                <Nav.Link href="https://github.com/nuta/resea">GitHub</Nav.Link>
+            </Nav>
+            </Navbar>
+            <Container>
+                <Component {...pageProps} />
+            </Container>
+        </div>
+    )
 }
-
-export default MyApp
