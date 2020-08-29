@@ -34,6 +34,7 @@ void arm64_init(void) {
 
     bzero(get_cpuvar(), sizeof(struct cpuvar));
     bzero(__bss, (vaddr_t) __bss_end - (vaddr_t) __bss);
+    lock();
 
     arm64_peripherals_init();
     kmain();
