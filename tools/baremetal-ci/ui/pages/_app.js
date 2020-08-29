@@ -2,6 +2,10 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import Link from 'next/link';
 import { Navbar, Nav, Container } from 'react-bootstrap';
 
+export async function fetchJson(url, options) {
+    return await (await fetch(url, options)).json();
+}
+
 export default function App({ Component, pageProps }) {
     return (
         <div>

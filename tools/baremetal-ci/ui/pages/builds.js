@@ -1,8 +1,15 @@
 import Head from 'next/head';
 import { Table } from 'react-bootstrap';
+import { fetchJson } from './_app';
+
+export async function getStaticProps(context) {
+    const resp = await fetchJson("/api/builds");
+    return {
+      props: resp,
+    }
+}
 
 export default function Builds() {
-    const data = [];
     return (
         <div>
             <Head>
