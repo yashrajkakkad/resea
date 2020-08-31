@@ -23,12 +23,19 @@ def authenticate(cred: HTTPAuthorizationCredentials = Depends(HTTPBearer())):
             headers={ "WWW-Authenticate": "Bearer" },
         )
 
+def raise_404_if_none(value):
+    if value is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No such a record"
+        )
+    return value
+
 @app.get("/api/builds")
 def list_builds():
     return {
         "builds": list(db.builds.find()),
     }
-
 
 @app.post("/api/builds")
 def create_build(cred = Depends(authenticate)):
@@ -36,8 +43,7 @@ def create_build(cred = Depends(authenticate)):
 
 @app.get("/api/builds/{id}")
 def get_build(id: int):
-    pass # TODO:
-
+    return raise_404_if_none(db.builds.find_one(id))
 
 @app.get("/api/runners")
 def list_runners():

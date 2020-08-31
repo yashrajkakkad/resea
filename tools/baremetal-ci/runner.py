@@ -19,20 +19,19 @@ class API:
         self.url = url
         self.api_key = api_key
 
-    def get(self, path, **kwargs):
+    def request(self, method, path, **kwargs):
         headers = kwargs.get("headers", {})
         headers["Authorization"] = f"bearer #{self.api_key}"
-        return requests.get(self.url + path, **kwargs)
+        return requests.request(method, self.url + path, **kwargs)
+
+    def get(self, path, **kwargs):
+        return self.request("get", path, **kwargs)
 
     def post(self, path, **kwargs):
-        headers = kwargs.get("headers", {})
-        headers["Authorization"] = f"bearer #{self.api_key}"
-        return requests.post(self.url + path, **kwargs)
+        return self.request("post", path, **kwargs)
 
     def put(self, path, **kwargs):
-        headers = kwargs.get("headers", {})
-        headers["Authorization"] = f"bearer #{self.api_key}"
-        return requests.put(self.url + path, **kwargs)
+        return self.request("put", path, **kwargs)
 
 class GpioRebooter:
     def __init__(self):
