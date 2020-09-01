@@ -2,11 +2,13 @@
 import argparse
 from datetime import datetime
 import os
+from typing import Optional
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from gridfs import GridFS
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, \
     HTTPException, status, File, UploadFile, Form
+from fastapi.responses import StreamingResponse
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -38,27 +40,35 @@ def raise_404_if_none(value):
         )
     return value
 
-def encode(obj, keys):
+def encode(obj, keys, date_keys):
     return {
         "id": str(obj["_id"]),
-        **{k: obj[k] for k in keys}
+        **{k: obj[k] for k in keys},
+        **{k: obj[k].timestamp() for k in date_keys},
     }
 
 def encode_build(obj):
-    keys = ["title", "machine", "created_by", "created_at"]
-    return encode(obj, keys)
+    keys = ["title", "machine", "created_by"]
+    date_keys = ["created_at"]
+    return encode(obj, keys, date_keys)
 
 def encode_run(obj):
-    keys = ["runner_id", "log", "created_at"]
-    return encode(obj, keys)
+    keys = ["runner_id", "log"]
+    date_keys = ["created_at"]
+    return encode(obj, keys, date_keys)
 
 #
 #  API Endpoints
 #
 
 @app.get("/api/builds")
-def list_builds():
-    return list(db.builds.find())
+def list_builds(newer_than: Optional[float] = None):
+    if newer_than:
+        print(datetime.fromtimestamp(newer_than))
+        query = { "created_at": { "$gt": datetime.fromtimestamp(newer_than) } }
+    else:
+        query = {}
+    return list(map(encode_build, db.builds.find(query)))
 
 @app.post("/api/builds")
 def create_build(
@@ -74,6 +84,7 @@ def create_build(
         "image_file_id": file_id,
         "created_at": datetime.utcnow(),
     })
+    print("Created", datetime.utcnow())
     return encode_build(db.builds.find_one({ "_id": ObjectId(result.inserted_id) }))
 
 @app.get("/api/builds/{id}")
@@ -84,6 +95,12 @@ def get_build(id: str):
 def list_runs_for_build(id: str):
     build = raise_404_if_none(db.builds.find_one({ "_id": ObjectId(id) }))
     return list(map(encode_run, db.runs.find({ "build_id": build["_id"] })))
+
+@app.get("/api/builds/{id}/image")
+def get_image(id: str):
+    build = raise_404_if_none(db.builds.find_one({ "_id": ObjectId(id) }))
+    file = fs.get(build["image_file_id"])
+    return StreamingResponse(file, media_type="application/octet-stream")
 
 @app.get("/api/runners")
 def list_runners():

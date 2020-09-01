@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import os
 import logging
 from logging import getLogger
@@ -52,12 +53,12 @@ class CpInstaller:
             open(tmp.name, "wb").write(image)
             os.rename(tmp.name, self.dest)
 
-last_build_id = 0
+last_build_id = datetime.utcnow().timestamp()
 def get_next_build(polling_interval):
     global last_build_id
     logger.info("watching for new builds...")
     while True:
-        new_builds = api.get("/api/builds", params={ "newer_than": last_build_id }).json()["builds"]
+        new_builds = api.get("/api/builds", params={ "newer_than": last_build_id }).json()
         if len(new_builds) > 0:
             last_build_id = new_builds[0]
             return new_builds[0]
@@ -67,6 +68,7 @@ def update_run_status(run_id, new_status):
     api.put(f"/api/runs/{run_id}", json={ "status": new_status })
 
 def run_build(build):
+    logger.info(f"Found a new build {build['id']}")
     image = api.get(f"/api/builds/{build['id']}/image").content
 
     run_id = api.post(f"/api/runs").json()["id"]
@@ -84,10 +86,10 @@ def main():
     parser.add_argument("--url", required=True, help="The BareMetal CI Server URL.")
     parser.add_argument("--api-key", help="The API Key.")
     parser.add_argument("--polling-interval", type=int, default=3)
-    parser.add_argument("--install-by", choices=["cp"])
+    parser.add_argument("--install-by", choices=["cp"], required=True)
     parser.add_argument("--install-path",
         help="The destination path for the cp installer.")
-    parser.add_argument("--reboot-by", choices=["gpio"])
+    parser.add_argument("--reboot-by", choices=["gpio"], required=True)
     args = parser.parse_args()
 
     # register_runner()
@@ -108,4 +110,7 @@ def main():
         run_build(build)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Ctrl-C")
