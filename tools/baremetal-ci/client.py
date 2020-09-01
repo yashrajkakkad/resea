@@ -51,8 +51,10 @@ def cprint(color, message):
     print(f"{Style.BRIGHT}{color}==> {Fore.RESET}BareMetal CI: {message}{Style.RESET_ALL}")
 
 def run_command(args):
-    cprint(Fore.BLUE, "Enqueueing a build...")
     build_id = create_build(args.title, args.created_by, args.machine, args.image)
+
+    # Wait for a runner to accept the build...
+    cprint(Fore.BLUE, "Enqueued the build, waiting for a runner...")
     for _ in range(0, args.timeout):
         run = get_run_for_build(build_id)
         if run is not None:
@@ -63,21 +65,22 @@ def run_command(args):
         cprint(Fore.RED, "No runners accpeted the submitted build")
         return
 
-    cprint(Fore.BLUE, f"Runner {run.runner_name}: {api.url}/runs/{run_id}")
+    # Wait for the machine to finish tests....
+    cprint(Fore.BLUE, f"Runner {run['runner_name']}: {api.url}/runs/{run_id}")
+    cprint(Fore.BLUE, "Running on the machine...")
     for _ in range(0, args.timeout):
-        cprint(Fore.BLUE, "Running on a machine...")
         if run["status"] in ["failure", "success"]:
             break
         time.sleep(args.polling_interval)
     else:
-        cprint(Fore.RED, "machine timed out")
+        cprint(Fore.RED, "Machine timed out")
         api.put(f"/api/runs/{run_id}", json={ "status": "timeout" })
         return
 
     if build["status"] == "success":
-        cprint(Fore.GREEN, "successfully finished tests")
+        cprint(Fore.GREEN, "Successfully finished tests")
     else:
-        cprint(Fore.YELLOW, f"finished with {build['status']}")
+        cprint(Fore.YELLOW, f"Finished with {build['status']}")
 
 def main():
     global api
