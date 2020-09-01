@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-multipart
+pymongo
+requests
+coloredlogs
+python-dotenv

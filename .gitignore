@@ -11,5 +11,6 @@
 *.log
 *.tmp
 *.pyc
+.env*
 /servers/*/target
 node_modules

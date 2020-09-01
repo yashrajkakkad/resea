@@ -2,7 +2,11 @@
 import argparse
 import os
 from pymongo import MongoClient
-from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, HTTPException, status
+from gridfs import GridFS
+from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, \
+    HTTPException, status, File, UploadFile, Form
+from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from hmac import compare_digest
 from logging import getLogger
@@ -14,6 +18,7 @@ MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "baremental-ci")
 app = FastAPI()
 logger = getLogger("baremetal-ci")
 db = MongoClient(MONGO_URI)[MONGO_DB_NAME]
+fs = GridFS(db)
 
 def authenticate(cred: HTTPAuthorizationCredentials = Depends(HTTPBearer())):
     if not compare_digest(API_KEY, cred.credentials):
@@ -31,6 +36,16 @@ def raise_404_if_none(value):
         )
     return value
 
+def encode_build(obj):
+    return {
+        "id": str(obj["_id"]),
+        **{k: obj[k] for k in ["title", "machine", "created_by"]}
+    }
+
+#
+#  API Endpoints
+#
+
 @app.get("/api/builds")
 def list_builds():
     return {
@@ -38,12 +53,23 @@ def list_builds():
     }
 
 @app.post("/api/builds")
-def create_build(cred = Depends(authenticate)):
-    pass # TODO:
+def create_build(
+    cred = Depends(authenticate),
+    title = Form(...), machine = Form(...), created_by = Form(...),
+    image: UploadFile = File("image")
+):
+    file_id = fs.put(image.file)
+    result = db.builds.insert_one({
+        "title": title,
+        "machine": machine,
+        "created_by": created_by,
+        "image_file_id": file_id,
+    })
+    return encode_build(db.builds.find_one(result.inserted_id))
 
 @app.get("/api/builds/{id}")
 def get_build(id: int):
-    return raise_404_if_none(db.builds.find_one(id))
+    return raise_404_if_none(encode_build(db.builds.find_one(id)))
 
 @app.get("/api/runners")
 def list_runners():

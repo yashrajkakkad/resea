@@ -7,6 +7,7 @@ import time
 import operator
 import requests
 import coloredlogs
+from dotenv import load_dotenv
 
 logger = getLogger("runner")
 coloredlogs.install(level="INFO")
@@ -22,7 +23,9 @@ class API:
     def request(self, method, path, **kwargs):
         headers = kwargs.get("headers", {})
         headers["Authorization"] = f"bearer #{self.api_key}"
-        return requests.request(method, self.url + path, **kwargs)
+        resp = requests.request(method, self.url + path, **kwargs)
+        resp.raise_for_status()
+        return resp
 
     def get(self, path, **kwargs):
         return self.request("get", path, **kwargs)
@@ -54,10 +57,9 @@ def get_next_build(polling_interval):
     global last_build_id
     logger.info("watching for new builds...")
     while True:
-        builds = api.get("/api/builds").json()["builds"]
-        new_builds = list(filter(lambda build: build["id"] > last_build_id,
-            sorted(builds, key=operator.itemgetter("id"))))
+        new_builds = api.get("/api/builds", params={ "newer_than": last_build_id }).json()["builds"]
         if len(new_builds) > 0:
+            last_build_id = new_builds[0]
             return new_builds[0]
         time.sleep(polling_interval)
 
@@ -77,9 +79,10 @@ def run_build(build):
 
 def main():
     global api, installer, rebooter
+    load_dotenv()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--url", required=True)
-    parser.add_argument("--api-key")
+    parser.add_argument("--url", required=True, help="The BareMetal CI Server URL.")
+    parser.add_argument("--api-key", help="The API Key.")
     parser.add_argument("--polling-interval", type=int, default=3)
     parser.add_argument("--install-by", choices=["cp"])
     parser.add_argument("--install-path",
@@ -89,7 +92,7 @@ def main():
 
     # register_runner()
 
-    api_key = os.environ.get("API_KEY", args.api_key)
+    api_key = os.environ.get("BAREMETALCI_API_KEY", args.api_key)
     api = API(args.url, api_key)
 
     if args.install_by == "cp":
