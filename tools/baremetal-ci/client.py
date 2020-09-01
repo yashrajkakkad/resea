@@ -16,7 +16,6 @@ class API:
         kwargs.setdefault("headers", {})
         kwargs["headers"]["Authorization"] = f"bearer {self.api_key}"
         resp = requests.request(method, self.url + path, **kwargs)
-        print(resp.text)
         resp.raise_for_status()
         return resp
 
@@ -43,8 +42,7 @@ def create_build(title, created_by, machine, image):
     return resp.json()["id"]
 
 def get_run_for_build(build_id):
-    resp = api.post(f"/api/builds/{build_id}/runs")
-    runs = resp.json()
+    runs = api.get(f"/api/builds/{build_id}/runs").json()
     if len(runs) == 0:
         return None
     return runs[0]
@@ -57,14 +55,15 @@ def run_command(args):
     build_id = create_build(args.title, args.created_by, args.machine, args.image)
     for _ in range(0, args.timeout):
         run = get_run_for_build(build_id)
-        if run_id is not None:
+        if run is not None:
+            run_id = run["id"]
             break
         time.sleep(args.polling_interval)
     else:
-        cprint(Fore.RED, "no runners accpeted our build")
+        cprint(Fore.RED, "No runners accpeted the submitted build")
         return
 
-    cprint(Fore.BLUE, f"Runner {run.runner_name}: {api.url}/runs/{run.id}")
+    cprint(Fore.BLUE, f"Runner {run.runner_name}: {api.url}/runs/{run_id}")
     for _ in range(0, args.timeout):
         cprint(Fore.BLUE, "Running on a machine...")
         if run["status"] in ["failure", "success"]:
@@ -78,7 +77,7 @@ def run_command(args):
     if build["status"] == "success":
         cprint(Fore.GREEN, "successfully finished tests")
     else:
-        cprint(Fore.YELLOW, "finished with {build['status']}")
+        cprint(Fore.YELLOW, f"finished with {build['status']}")
 
 def main():
     global api

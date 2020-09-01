@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+from datetime import datetime
 import os
 from pymongo import MongoClient
+from bson.objectid import ObjectId
 from gridfs import GridFS
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, \
     HTTPException, status, File, UploadFile, Form
@@ -36,11 +38,19 @@ def raise_404_if_none(value):
         )
     return value
 
-def encode_build(obj):
+def encode(obj, keys):
     return {
         "id": str(obj["_id"]),
-        **{k: obj[k] for k in ["title", "machine", "created_by"]}
+        **{k: obj[k] for k in keys}
     }
+
+def encode_build(obj):
+    keys = ["title", "machine", "created_by", "created_at"]
+    return encode(obj, keys)
+
+def encode_run(obj):
+    keys = ["runner_id", "log", "created_at"]
+    return encode(obj, keys)
 
 #
 #  API Endpoints
@@ -48,9 +58,7 @@ def encode_build(obj):
 
 @app.get("/api/builds")
 def list_builds():
-    return {
-        "builds": list(db.builds.find()),
-    }
+    return list(db.builds.find())
 
 @app.post("/api/builds")
 def create_build(
@@ -64,12 +72,18 @@ def create_build(
         "machine": machine,
         "created_by": created_by,
         "image_file_id": file_id,
+        "created_at": datetime.utcnow(),
     })
-    return encode_build(db.builds.find_one(result.inserted_id))
+    return encode_build(db.builds.find_one({ "_id": ObjectId(result.inserted_id) }))
 
 @app.get("/api/builds/{id}")
-def get_build(id: int):
-    return raise_404_if_none(encode_build(db.builds.find_one(id)))
+def get_build(id: str):
+    return encode_build(raise_404_if_none(db.builds.find_one({ "_id": ObjectId(id) })))
+
+@app.get("/api/builds/{id}/runs")
+def list_runs_for_build(id: str):
+    build = raise_404_if_none(db.builds.find_one({ "_id": ObjectId(id) }))
+    return list(map(encode_run, db.runs.find({ "build_id": build["_id"] })))
 
 @app.get("/api/runners")
 def list_runners():
@@ -77,7 +91,7 @@ def list_runners():
       print(x)
 
 @app.put("/api/runners/{id}")
-def register_or_update_runner(id: int, cred = Depends(authenticate)):
+def register_or_update_runner(id: str, cred = Depends(authenticate)):
     pass # TODO:
 
 @app.get("/api/runs")
@@ -90,19 +104,19 @@ def create_run(cred = Depends(authenticate)):
     pass # TODO:
 
 @app.put("/api/runs/{id}")
-def update_run(id: int, cred = Depends(authenticate)):
+def update_run(id: str, cred = Depends(authenticate)):
     pass # TODO:
 
 @app.get("/api/runs/{id}")
-def get_run(id: int):
+def get_run(id: str):
     pass # TODO:
 
 @app.get("/api/runs/{id}/log")
-def get_run_log(id: int):
+def get_run_log(id: str):
     pass # TODO:
 
 @app.post("/api/runs/{id}/log")
-def update_run_log(id: int, cred = Depends(authenticate)):
+def update_run_log(id: str, cred = Depends(authenticate)):
     pass # TODO:
 
 if __name__ == "__main__":
