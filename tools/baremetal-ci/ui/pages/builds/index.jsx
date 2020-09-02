@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import Head from "next/head";
+import Link from "next/link";
 import { Table } from "react-bootstrap";
-import { fetchJson } from "./_app";
+import { fetchJson } from "@/lib/api";
+import Moment from 'react-moment';
 
 export default function Builds() {
     const [builds, setBuilds] = useState([]);
@@ -11,7 +13,7 @@ export default function Builds() {
         }
 
         fetch();
-    });
+    }, []);
 
     return (
         <div>
@@ -20,31 +22,33 @@ export default function Builds() {
             </Head>
 
             <header>
-                <h2>Builds</h2>
+                <h2 class="mt-4 mb-4">Builds</h2>
             </header>
             <main>
-                <Table size="sm">
+                <Table size="sm" striped bordered hover>
                     <thead>
                         <tr>
                             <th>Status</th>
                             <th>ID</th>
-                            <th>Commit</th>
                             <th>Description</th>
                             <th>Arch</th>
-                            <th>Created by</th>
                             <th>Created at</th>
+                            <th>Created by</th>
                         </tr>
                     </thead>
                     <tbody>
                         {builds.map(build => (
                             <tr key={build.id}>
                                 <td>{build.status}</td>
-                                <td>{build.id}</td>
-                                <td>{build.commit}</td>
+                                <td>
+                                    <Link href="/builds/[id]" as={`/builds/${build.id}`}>
+                                        <a>{build.id}</a>
+                                    </Link>
+                                </td>
                                 <td>{build.description}</td>
                                 <td>{build.arch}</td>
+                                <td><Moment unix fromNow>{build.created_at}</Moment></td>
                                 <td>{build.created_by}</td>
-                                <td>{build.created_at}</td>
                             </tr>
                         ))}
                     </tbody>
