@@ -100,7 +100,6 @@ def run_build(args, build):
                 break
 
             new_data = s.read().decode("utf-8", "backslashreplace")
-            new_data = "fooo"
             if len(new_data) == 0:
                 continue
 
