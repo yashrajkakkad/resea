@@ -69,7 +69,6 @@ def encode_runner(obj):
 @app.get("/api/builds")
 def list_builds(newer_than: Optional[float] = None):
     if newer_than:
-        print(datetime.fromtimestamp(newer_than))
         query = { "created_at": { "$gt": datetime.fromtimestamp(newer_than) } }
     else:
         query = {}
@@ -89,7 +88,6 @@ def create_build(
         "image_file_id": file_id,
         "created_at": datetime.utcnow(),
     })
-    print("Created", datetime.utcnow())
     return encode_build(db.builds.find_one({ "_id": ObjectId(result.inserted_id) }))
 
 @app.get("/api/builds/{id}")
@@ -107,29 +105,45 @@ def get_image(id: str):
     file = fs.get(build["image_file_id"])
     return Response(file.read(), media_type="application/octet-stream")
 
+class Run(BaseModel):
+    status: str
+    runner_name: str
+    build_id: str
+    duration: int
+
 @app.get("/api/runs")
 def list_runs():
     return list(map(encode_run, db.runs.find()))
 
-@app.put("/api/runs")
-def create_run(cred = Depends(authenticate)):
-    pass # TODO:
+@app.post("/api/runs")
+def create_run(run: Run, cred = Depends(authenticate)):
+    result = db.runs.insert_one({
+        **dict(run),
+        **{ "created_at": datetime.utcnow() },
+    })
+    return encode_run(db.runs.find_one({ "_id": ObjectId(result.inserted_id) }))
 
 @app.put("/api/runs/{id}")
 def update_run(id: str, cred = Depends(authenticate)):
-    pass # TODO:
+    db.builds.insert_one({ "id": id }, dict(run))
 
 @app.get("/api/runs/{id}")
 def get_run(id: str):
-    pass # TODO:
+    return encode_run(db.runs.find_one({ "_id": ObjectId(id) }))
 
 @app.get("/api/runs/{id}/log")
 def get_run_log(id: str):
-    pass # TODO:
+    return encode_log(db.logs.find_one({ "id": id }))
 
-@app.post("/api/runs/{id}/log")
-def update_run_log(id: str, cred = Depends(authenticate)):
-    pass # TODO:
+class Log(BaseModel):
+    text: str
+
+@app.put("/api/runs/{id}/log")
+def update_run_log(id: str, log: Log, cred = Depends(authenticate)):
+    db.logs.replace_one({ "id": id }, {
+        **dict(log),
+        **{ "updated_at": datetime.utcnow() },
+    }, upsert=True)
 
 @app.get("/api/runners")
 def list_runners():

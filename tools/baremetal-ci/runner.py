@@ -10,6 +10,7 @@ import operator
 import requests
 import coloredlogs
 from dotenv import load_dotenv
+import serial
 
 logger = getLogger("runner")
 coloredlogs.install(level="INFO")
@@ -101,6 +102,7 @@ def main():
     parser.add_argument("--install-path",
         help="The destination path for the cp installer.")
     parser.add_argument("--reboot-by", choices=["gpio"], required=True)
+    parser.add_argument("--serial-path", required=True)
     args = parser.parse_args()
 
     api_key = os.environ.get("BAREMETALCI_API_KEY", args.api_key)

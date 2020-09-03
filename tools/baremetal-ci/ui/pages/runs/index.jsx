@@ -28,25 +28,27 @@ export default function Runs() {
                 <Table size="sm" striped bordered hover>
                     <thead>
                         <tr>
-                            <th className="collapsing">Status</th>
-                            <th className="collapsing">ID</th>
-                            <th className="collapsing">Runner Name</th>
+                            <th>Status</th>
+                            <th>ID</th>
+                            <th>Runner Name</th>
                             <th>Build</th>
+                            <th>Duration</th>
                             <th>Created at</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {runs.map(build => (
-                            <tr key={build.id}>
+                        {runs.map(run => (
+                            <tr key={run.id}>
+                                <td>{run.status}</td>
                                 <td>
-                                    <Link href="/runs/[id]" as={`/runs/${build.id}`}>
-                                        <a>{build.id}</a>
+                                    <Link href="/runs/[id]" as={`/runs/${run.id}`}>
+                                        <a>{run.id}</a>
                                     </Link>
                                 </td>
-                                <td>{build.description}</td>
-                                <td>{build.arch}</td>
-                                <td><Moment unix fromNow>{build.created_at}</Moment></td>
-                                <td>{build.created_by}</td>
+                                <td>{run.runner_name}</td>
+                                <td>{run.build_id}</td>
+                                <td>{run.duration && `${run.duration} seconds`}</td>
+                                <td><Moment unix fromNow>{run.created_at}</Moment></td>
                             </tr>
                         ))}
                     </tbody>
