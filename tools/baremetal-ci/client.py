@@ -71,13 +71,13 @@ def run_command(args):
     cprint(Fore.BLUE, "Running on the machine...")
     offset = 0
     for _ in range(0, args.timeout):
-        log = api.get(f"/api/run/{run_id}/log").text()
+        log = api.get(f"/api/runs/{run_id}/log").text
         print(log[offset:], end="")
         sys.stdout.flush()
         offset = len(log)
 
-        run = api.get(f"/api/run/{run_id}").json()
-        if run["status"] in ["failure", "success"]:
+        run = api.get(f"/api/runs/{run_id}").json()
+        if run["status"] in ["timeout", "failure", "success"]:
             break
 
         time.sleep(args.polling_interval)
@@ -86,10 +86,11 @@ def run_command(args):
         api.put(f"/api/runs/{run_id}", json={ "status": "timeout" })
         return
 
-    if build["status"] == "success":
+    if run["status"] == "success":
         cprint(Fore.GREEN, "Successfully finished tests")
     else:
-        cprint(Fore.YELLOW, f"Finished with {build['status']}")
+        cprint(Fore.YELLOW, f"Finished with {run['status']}")
+        sys.exit(1)
 
 def main():
     global api

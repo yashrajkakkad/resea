@@ -97,8 +97,7 @@ def get_build(id: str):
 
 @app.get("/api/builds/{id}/runs")
 def list_runs_for_build(id: str):
-    build = raise_404_if_none(db.builds.find_one({ "_id": ObjectId(id) }))
-    return list(map(encode_run, db.runs.find({ "build_id": build["_id"] })))
+    return list(map(encode_run, db.runs.find({ "build_id": id })))
 
 @app.get("/api/builds/{id}/image")
 def get_image(id: str):
@@ -122,12 +121,17 @@ def create_run(run: Run, cred = Depends(authenticate)):
         **dict(run),
         **{ "created_at": datetime.utcnow() },
     })
+    db.logs.insert_one({
+        "run_id": str(result.inserted_id),
+        "text": "",
+        "updated_at": datetime.utcnow(),
+    })
     return encode_run(db.runs.find_one({ "_id": ObjectId(result.inserted_id) }))
 
 @app.put("/api/runs/{id}")
 async def update_run(id: str, request: Request, cred = Depends(authenticate)):
     run = await request.json()
-    db.builds.update_one({ "id": id }, { "$set": dict(run) })
+    db.runs.update_one({ "_id": ObjectId(id) }, { "$set": run })
 
 @app.get("/api/runs/{id}")
 def get_run(id: str):
@@ -135,15 +139,15 @@ def get_run(id: str):
 
 @app.get("/api/runs/{id}/log")
 def get_run_log(id: str):
-    log = raise_404_if_none(db.logs.find_one({ "id": id }))
-    return log["text"]
+    log = raise_404_if_none(db.logs.find_one({ "run_id": id }))
+    return Response(log["text"], media_type="plain/text")
 
 class Log(BaseModel):
     text: str
 
 @app.put("/api/runs/{id}/log")
 def update_run_log(id: str, log: Log, cred = Depends(authenticate)):
-    db.logs.update_one({ "id": id }, {
+    db.logs.update_one({ "run_id": id }, {
         "$set": {
             **dict(log),
             **{ "updated_at": datetime.utcnow() },

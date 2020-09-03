@@ -80,6 +80,7 @@ def run_build(args, build):
         "build_id": build["id"],
     }
     run_id = api.post(f"/api/runs", json=run).json()["id"]
+    logger.info(f"{build['id']}: Starting a new run {run_id}")
 
     logger.info(f"{build['id']}: Installing...")
     image = api.get(f"/api/builds/{build['id']}/image").content
@@ -94,12 +95,12 @@ def run_build(args, build):
     timed_out = False
     with serial.Serial(args.serial_path, args.baudrate, timeout=1) as s:
         while True:
-            log += "oh yeah\n"
             if started_at + args.timeout < time.time():
                 timed_out = True
                 break
 
             new_data = s.read().decode("utf-8", "backslashreplace")
+            new_data = "fooo"
             if len(new_data) == 0:
                 continue
 
