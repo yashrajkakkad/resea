@@ -3,6 +3,7 @@ const express = require("express")
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const port = 8080;
+const host = process.env.HOST || "localhost";
 const app = next({ dev: true })
 app.prepare().then(() => {
     const server = express()
@@ -17,8 +18,8 @@ app.prepare().then(() => {
         return handle(req, res)
     })
 
-    server.listen(port, err => {
+    server.listen(port, host, err => {
         if (err) throw err
-        console.log(`Listening on http://localhost:${port}`)
+        console.log(`Listening on http://${host}:${port}`)
     })
 })

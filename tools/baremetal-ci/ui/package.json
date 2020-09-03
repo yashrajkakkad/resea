@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node dev.js",
-    "build": "next build && next export",
-    "start": "next start"
+    "build": "next build && next export"
   },
   "dependencies": {
     "bootstrap": "^4.5.2",

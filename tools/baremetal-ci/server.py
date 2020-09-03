@@ -8,7 +8,7 @@ from bson.objectid import ObjectId
 from gridfs import GridFS
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, \
     HTTPException, status, File, UploadFile, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -100,7 +100,7 @@ def list_runs_for_build(id: str):
 def get_image(id: str):
     build = raise_404_if_none(db.builds.find_one({ "_id": ObjectId(id) }))
     file = fs.get(build["image_file_id"])
-    return StreamingResponse(file, media_type="application/octet-stream")
+    return Response(file.read(), media_type="application/octet-stream")
 
 @app.get("/api/runners")
 def list_runners():

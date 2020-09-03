@@ -2,6 +2,7 @@ import argparse
 import os
 import time
 import requests
+import sys
 from colorama import Fore, Back, Style
 from dotenv import load_dotenv
 
@@ -105,4 +106,7 @@ def main():
     args.func(args)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit("Exited by Ctrl-C")
