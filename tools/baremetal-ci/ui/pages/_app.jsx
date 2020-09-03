@@ -9,7 +9,7 @@ export default function App({ Component, pageProps }) {
             <Navbar.Brand href="#home">BareMetal CI</Navbar.Brand>
             <Nav className="mr-auto">
                 <Link passHref href="/builds"><Nav.Link>Builds</Nav.Link></Link>
-                <Link passHref href="/tests"><Nav.Link>Tests</Nav.Link></Link>
+                <Link passHref href="/runs"><Nav.Link>Runs</Nav.Link></Link>
                 <Link passHref href="/runners"><Nav.Link>Runners</Nav.Link></Link>
             </Nav>
             <Nav>

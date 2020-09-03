@@ -113,8 +113,7 @@ def register_or_update_runner(id: str, cred = Depends(authenticate)):
 
 @app.get("/api/runs")
 def list_runs():
-    for x in db.posts.find():
-      print(x)
+    return list(map(encode_run, db.runs.find()))
 
 @app.put("/api/runs")
 def create_run(cred = Depends(authenticate)):

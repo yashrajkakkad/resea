@@ -5,11 +5,11 @@ import { Table } from "react-bootstrap";
 import { fetchJson } from "@/lib/api";
 import Moment from 'react-moment';
 
-export default function Builds() {
-    const [builds, setBuilds] = useState([]);
+export default function Runs() {
+    const [runs, setRuns] = useState([]);
     useEffect(() => {
         async function fetch() {
-            setBuilds(await fetchJson("/api/builds"));
+            setRuns(await fetchJson("/api/runs"));
         }
 
         fetch();
@@ -18,28 +18,28 @@ export default function Builds() {
     return (
         <div>
             <Head>
-              <title>BareMetal CI - Builds</title>
+              <title>BareMetal CI - Runs</title>
             </Head>
 
             <header>
-                <h2 className="mt-4 mb-4">Builds</h2>
+                <h2 className="mt-4 mb-4">Runs</h2>
             </header>
             <main>
                 <Table size="sm" striped bordered hover>
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Description</th>
-                            <th>Arch</th>
+                            <th className="collapsing">Status</th>
+                            <th className="collapsing">ID</th>
+                            <th className="collapsing">Runner Name</th>
+                            <th>Build</th>
                             <th>Created at</th>
-                            <th>Created by</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {builds.map(build => (
+                        {runs.map(build => (
                             <tr key={build.id}>
                                 <td>
-                                    <Link href="/builds/[id]" as={`/builds/${build.id}`}>
+                                    <Link href="/runs/[id]" as={`/runs/${build.id}`}>
                                         <a>{build.id}</a>
                                     </Link>
                                 </td>
