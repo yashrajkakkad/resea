@@ -1,6 +1,7 @@
 import argparse
 from datetime import datetime
 import os
+from pathlib import Path
 import logging
 from logging import getLogger
 import tempfile
@@ -50,19 +51,20 @@ class CpInstaller:
     def __init__(self, install_path):
         self.dest = install_path
 
-    def install(self):
-        with tempfile.NamedTemporaryFile as tmp:
-            open(tmp.name, "wb").write(image)
-            os.rename(tmp.name, self.dest)
+    def install(self, image):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / "image"
+            open(tmp_path, "wb").write(image)
+            os.rename(tmp_path, self.dest)
 
-last_build_id = datetime.utcnow().timestamp()
+newer_than = datetime.utcnow().timestamp()
 def get_next_build(polling_interval):
-    global last_build_id
+    global newer_than
     logger.info("watching for new builds...")
     while True:
-        new_builds = api.get("/api/builds", params={ "newer_than": last_build_id }).json()
+        new_builds = api.get("/api/builds", params={ "newer_than": newer_than }).json()
         if len(new_builds) > 0:
-            last_build_id = new_builds[0]
+            newer_than = new_builds[0]["created_at"]
             return new_builds[0]
         time.sleep(polling_interval)
 
@@ -71,35 +73,43 @@ def update_run_status(run_id, new_status):
 
 
 def run_build(args, build):
-    logger.info(f"Found a new build {build['id']}")
-    image = api.get(f"/api/builds/{build['id']}/image").content
+    logger.info(f"{build['id']}: Found a new build")
+    run = {
+        "status": "created",
+        "runner_name": args.name,
+        "build_id": build["id"],
+    }
+    run_id = api.post(f"/api/runs", json=run).json()["id"]
 
-    run_id = api.post(f"/api/runs").json()["id"]
+    logger.info(f"{build['id']}: Installing...")
+    image = api.get(f"/api/builds/{build['id']}/image").content
     installer.install(image)
 
-    serial_reader = threading.Thread(target=read_serial, args=(args,))
-    serial_reader.start()
+    logger.info(f"{build['id']}: Rebooting...")
     rebooter.reboot()
-
     update_run_status(run_id, "booting")
 
     log = ""
     started_at = time.time()
     timed_out = False
     with serial.Serial(args.serial_path, args.baudrate, timeout=1) as s:
-        print("reading...")
         while True:
             log += "oh yeah\n"
             if started_at + args.timeout < time.time():
                 timed_out = True
                 break
 
-            log += s.read().decode("utf-8", "backslashreplace")
-            api.post(f"/api/runs/{run_id}/log", json={ "text": log })
+            new_data = s.read().decode("utf-8", "backslashreplace")
+            if len(new_data) == 0:
+                continue
+
+            log += new_data
+            api.put(f"/api/runs/{run_id}/log", json={ "text": log })
             if "Passed all tests" in log:
                 break
 
     status = "timeout" if timed_out else "finished"
+    logger.info(f"{build['id']}: Finished the execution as status '{status}'")
     update_run_status(run_id, status)
 
 def hearbeating(runner_name, machine):
@@ -117,6 +127,8 @@ def main():
     parser.add_argument("--name", required=True, help="The runner name.")
     parser.add_argument("--machine", required=True, help="The machine type.")
     parser.add_argument("--url", required=True, help="The BareMetal CI Server URL.")
+    parser.add_argument("--timeout", type=int, default=30,
+        help="The maximum running time in seconds for each run.")
     parser.add_argument("--api-key", help="The API Key.")
     parser.add_argument("--polling-interval", type=int, default=3)
     parser.add_argument("--install-by", choices=["cp"], required=True)
@@ -131,8 +143,8 @@ def main():
     api = API(args.url, api_key)
 
     if args.install_by == "cp":
-        if args.install_path:
-            raise "--install-path is not set"
+        if not args.install_path:
+            raise Exception("--install-path is not set")
         installer = CpInstaller(args.install_path)
 
     if args.reboot_by == "gpio":

@@ -8,10 +8,11 @@ from bson.objectid import ObjectId
 from gridfs import GridFS
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, \
     HTTPException, status, File, UploadFile, Form
+from fastapi.requests import Request
 from fastapi.responses import Response
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
 from hmac import compare_digest
 from logging import getLogger
 
@@ -53,7 +54,7 @@ def encode_build(obj):
     return encode(obj, keys, date_keys)
 
 def encode_run(obj):
-    keys = ["runner_name", "log"]
+    keys = ["status", "runner_name", "build_id", "duration"]
     date_keys = ["created_at"]
     return encode(obj, keys, date_keys)
 
@@ -109,7 +110,7 @@ class Run(BaseModel):
     status: str
     runner_name: str
     build_id: str
-    duration: int
+    duration: Optional[int]
 
 @app.get("/api/runs")
 def list_runs():
@@ -124,16 +125,18 @@ def create_run(run: Run, cred = Depends(authenticate)):
     return encode_run(db.runs.find_one({ "_id": ObjectId(result.inserted_id) }))
 
 @app.put("/api/runs/{id}")
-def update_run(id: str, cred = Depends(authenticate)):
+async def update_run(id: str, request: Request, cred = Depends(authenticate)):
+    run = await request.json()
     db.builds.update_one({ "id": id }, { "$set": dict(run) })
 
 @app.get("/api/runs/{id}")
 def get_run(id: str):
-    return encode_run(db.runs.find_one({ "_id": ObjectId(id) }))
+    return encode_run(raise_404_if_none(db.runs.find_one({ "_id": ObjectId(id) })))
 
 @app.get("/api/runs/{id}/log")
 def get_run_log(id: str):
-    return encode_log(db.logs.find_one({ "id": id }))
+    log = raise_404_if_none(db.logs.find_one({ "id": id }))
+    return log["text"]
 
 class Log(BaseModel):
     text: str

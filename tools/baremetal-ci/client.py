@@ -69,9 +69,17 @@ def run_command(args):
     # Wait for the machine to finish tests....
     cprint(Fore.BLUE, f"Runner {run['runner_name']}: {api.url}/runs/{run_id}")
     cprint(Fore.BLUE, "Running on the machine...")
+    offset = 0
     for _ in range(0, args.timeout):
+        log = api.get(f"/api/run/{run_id}/log").text()
+        print(log[offset:], end="")
+        sys.stdout.flush()
+        offset = len(log)
+
+        run = api.get(f"/api/run/{run_id}").json()
         if run["status"] in ["failure", "success"]:
             break
+
         time.sleep(args.polling_interval)
     else:
         cprint(Fore.RED, "Machine timed out")
