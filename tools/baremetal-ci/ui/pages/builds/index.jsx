@@ -22,7 +22,7 @@ export default function Builds() {
             </Head>
 
             <header>
-                <h2 class="mt-4 mb-4">Builds</h2>
+                <h2 className="mt-4 mb-4">Builds</h2>
             </header>
             <main>
                 <Table size="sm" striped bordered hover>
