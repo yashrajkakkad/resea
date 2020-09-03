@@ -53,8 +53,13 @@ def encode_build(obj):
     return encode(obj, keys, date_keys)
 
 def encode_run(obj):
-    keys = ["runner_id", "log"]
+    keys = ["runner_name", "log"]
     date_keys = ["created_at"]
+    return encode(obj, keys, date_keys)
+
+def encode_runner(obj):
+    keys = ["name", "machine"]
+    date_keys = ["updated_at"]
     return encode(obj, keys, date_keys)
 
 #
@@ -102,15 +107,6 @@ def get_image(id: str):
     file = fs.get(build["image_file_id"])
     return Response(file.read(), media_type="application/octet-stream")
 
-@app.get("/api/runners")
-def list_runners():
-    for x in db.posts.find():
-      print(x)
-
-@app.put("/api/runners/{id}")
-def register_or_update_runner(id: str, cred = Depends(authenticate)):
-    pass # TODO:
-
 @app.get("/api/runs")
 def list_runs():
     return list(map(encode_run, db.runs.find()))
@@ -134,6 +130,21 @@ def get_run_log(id: str):
 @app.post("/api/runs/{id}/log")
 def update_run_log(id: str, cred = Depends(authenticate)):
     pass # TODO:
+
+@app.get("/api/runners")
+def list_runners():
+    return list(map(encode_runner, db.runners.find()))
+
+class NewRunner(BaseModel):
+    name: str
+    machine: str
+
+@app.put("/api/runners/{name}")
+def register_or_update_runner(name: str, runner: NewRunner, cred = Depends(authenticate)):
+    db.runners.replace_one({ "name": name }, {
+        **dict(runner),
+        **{ "updated_at": datetime.utcnow() },
+    }, upsert=True)
 
 if __name__ == "__main__":
     import uvicorn

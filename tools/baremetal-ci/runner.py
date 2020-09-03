@@ -4,6 +4,7 @@ import os
 import logging
 from logging import getLogger
 import tempfile
+import threading
 import time
 import operator
 import requests
@@ -22,8 +23,8 @@ class API:
         self.api_key = api_key
 
     def request(self, method, path, **kwargs):
-        headers = kwargs.get("headers", {})
-        headers["Authorization"] = f"bearer #{self.api_key}"
+        kwargs.setdefault("headers", {})
+        kwargs["headers"]["Authorization"] = f"bearer {self.api_key}"
         resp = requests.request(method, self.url + path, **kwargs)
         resp.raise_for_status()
         return resp
@@ -79,10 +80,20 @@ def run_build(build):
 
     update_run_status(run_id, "booting")
 
+def hearbeating(runner_name, machine):
+    while True:
+        api.put(f"/api/runners/{runner_name}", json={
+            "name": runner_name,
+            "machine": machine,
+        })
+        time.sleep(5 * 60)
+
 def main():
     global api, installer, rebooter
     load_dotenv()
     parser = argparse.ArgumentParser()
+    parser.add_argument("--name", required=True, help="The runner name.")
+    parser.add_argument("--machine", required=True, help="The machine type.")
     parser.add_argument("--url", required=True, help="The BareMetal CI Server URL.")
     parser.add_argument("--api-key", help="The API Key.")
     parser.add_argument("--polling-interval", type=int, default=3)
@@ -91,8 +102,6 @@ def main():
         help="The destination path for the cp installer.")
     parser.add_argument("--reboot-by", choices=["gpio"], required=True)
     args = parser.parse_args()
-
-    # register_runner()
 
     api_key = os.environ.get("BAREMETALCI_API_KEY", args.api_key)
     api = API(args.url, api_key)
@@ -105,6 +114,8 @@ def main():
     if args.reboot_by == "gpio":
         rebooter = GpioRebooter()
 
+    logger.info("starting")
+    threading.Thread(target=hearbeating, args=(args.name, args.machine), daemon=True).start()
     while True:
         build = get_next_build(args.polling_interval)
         run_build(build)
