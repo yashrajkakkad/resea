@@ -125,7 +125,7 @@ def create_run(run: Run, cred = Depends(authenticate)):
 
 @app.put("/api/runs/{id}")
 def update_run(id: str, cred = Depends(authenticate)):
-    db.builds.insert_one({ "id": id }, dict(run))
+    db.builds.update_one({ "id": id }, { "$set": dict(run) })
 
 @app.get("/api/runs/{id}")
 def get_run(id: str):
@@ -140,9 +140,11 @@ class Log(BaseModel):
 
 @app.put("/api/runs/{id}/log")
 def update_run_log(id: str, log: Log, cred = Depends(authenticate)):
-    db.logs.replace_one({ "id": id }, {
-        **dict(log),
-        **{ "updated_at": datetime.utcnow() },
+    db.logs.update_one({ "id": id }, {
+        "$set": {
+            **dict(log),
+            **{ "updated_at": datetime.utcnow() },
+        }
     }, upsert=True)
 
 @app.get("/api/runners")
@@ -155,9 +157,11 @@ class NewRunner(BaseModel):
 
 @app.put("/api/runners/{name}")
 def register_or_update_runner(name: str, runner: NewRunner, cred = Depends(authenticate)):
-    db.runners.replace_one({ "name": name }, {
-        **dict(runner),
-        **{ "updated_at": datetime.utcnow() },
+    db.runners.update_one({ "name": name }, {
+        "$set": {
+            **dict(runner),
+            **{ "updated_at": datetime.utcnow() },
+        }
     }, upsert=True)
 
 if __name__ == "__main__":

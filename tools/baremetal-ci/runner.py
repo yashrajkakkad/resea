@@ -69,17 +69,38 @@ def get_next_build(polling_interval):
 def update_run_status(run_id, new_status):
     api.put(f"/api/runs/{run_id}", json={ "status": new_status })
 
-def run_build(build):
+
+def run_build(args, build):
     logger.info(f"Found a new build {build['id']}")
     image = api.get(f"/api/builds/{build['id']}/image").content
 
     run_id = api.post(f"/api/runs").json()["id"]
     installer.install(image)
 
-    # start_reading_serial()
+    serial_reader = threading.Thread(target=read_serial, args=(args,))
+    serial_reader.start()
     rebooter.reboot()
 
     update_run_status(run_id, "booting")
+
+    log = ""
+    started_at = time.time()
+    timed_out = False
+    with serial.Serial(args.serial_path, args.baudrate, timeout=1) as s:
+        print("reading...")
+        while True:
+            log += "oh yeah\n"
+            if started_at + args.timeout < time.time():
+                timed_out = True
+                break
+
+            log += s.read().decode("utf-8", "backslashreplace")
+            api.post(f"/api/runs/{run_id}/log", json={ "text": log })
+            if "Passed all tests" in log:
+                break
+
+    status = "timeout" if timed_out else "finished"
+    update_run_status(run_id, status)
 
 def hearbeating(runner_name, machine):
     while True:
@@ -103,6 +124,7 @@ def main():
         help="The destination path for the cp installer.")
     parser.add_argument("--reboot-by", choices=["gpio"], required=True)
     parser.add_argument("--serial-path", required=True)
+    parser.add_argument("--baudrate", type=int, default=115200)
     args = parser.parse_args()
 
     api_key = os.environ.get("BAREMETALCI_API_KEY", args.api_key)
@@ -120,7 +142,7 @@ def main():
     threading.Thread(target=hearbeating, args=(args.name, args.machine), daemon=True).start()
     while True:
         build = get_next_build(args.polling_interval)
-        run_build(build)
+        run_build(args, build)
 
 if __name__ == "__main__":
     try:
