@@ -28,7 +28,6 @@ export default function Builds() {
                 <Table size="sm" striped bordered hover>
                     <thead>
                         <tr>
-                            <th>Status</th>
                             <th>ID</th>
                             <th>Description</th>
                             <th>Arch</th>
@@ -39,7 +38,6 @@ export default function Builds() {
                     <tbody>
                         {builds.map(build => (
                             <tr key={build.id}>
-                                <td>{build.status}</td>
                                 <td>
                                     <Link href="/builds/[id]" as={`/builds/${build.id}`}>
                                         <a>{build.id}</a>

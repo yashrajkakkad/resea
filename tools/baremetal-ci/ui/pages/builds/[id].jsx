@@ -28,8 +28,6 @@ export default function Builds() {
             <main>
                 <section>
                     <dl className="row">
-                        <dt className="col-sm-2">Status</dt>
-                        <dd className="col-sm-10">{build.status}</dd>
                         <dt className="col-sm-2">Build ID</dt>
                         <dd className="col-sm-10">{build.id}</dd>
                         <dt className="col-sm-2">Git Commit</dt>
@@ -46,9 +44,6 @@ export default function Builds() {
                             &nbsp;(<Moment unix fromNow>{build.created_at}</Moment>)
                         </dd>
                     </dl>
-                </section>
-                <section>
-                    <h3 className="mt-4 mb-4 pb-2 border-bottom">Build Log</h3>
                 </section>
             </main>
         </div>
