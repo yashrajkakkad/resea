@@ -154,6 +154,11 @@ bool kdebug_is_readable(void) {
     return false;
 }
 
+void watchdog_init(void) {
+	mmio_write(PM_WDOG, PM_PASSWORD | 8 << 16);
+	mmio_write(PM_RSTC, PM_PASSWORD | PM_RSTC_WRCFG_FULL_RESET);
+}
+
 void arm64_timer_reload(void) {
     uint64_t hz = ARM64_MRS(cntfrq_el0);
     ASSERT(hz >= 1000);
@@ -169,6 +174,7 @@ static void timer_init(void) {
 
 void arm64_peripherals_init(void) {
     uart_init();
+    watchdog_init();
     timer_init();
 }
 

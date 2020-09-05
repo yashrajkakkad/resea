@@ -12,6 +12,12 @@
 // https://www.raspberrypi.org/documentation/hardware/raspberrypi/bcm2836/QA7_rev3.4.pdf
 #define CORE0_TIMER_IRQCNTL 0x40000040
 
+#define MMIO_BASE2   0x3f000000
+#define PM_RSTC     (MMIO_BASE2 + 0x0010001c)
+#define PM_WDOG     (MMIO_BASE2 + 0x00100024)
+#define PM_PASSWORD              0x5a000000
+#define PM_RSTC_WRCFG_FULL_RESET 0x00000020
+
 static inline uint32_t mmio_read(vaddr_t paddr) {
     return *((volatile uint32_t *) from_paddr(paddr));
 }
