@@ -4,8 +4,8 @@
 void arch_printchar(char ch) {
 }
 
-char kdebug_readchar(void) {
-    return '\0';
+int kdebug_readchar(void) {
+    return -1;
 }
 
 bool kdebug_is_readable(void) {

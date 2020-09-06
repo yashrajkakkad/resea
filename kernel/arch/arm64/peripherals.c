@@ -3,53 +3,6 @@
 #include "asm.h"
 #include "peripherals.h"
 
-void uart_send(unsigned int c) {
-    while (mmio_read(UART0_FR) & (1 << 5)) {}
-    mmio_write(UART0_DR, c);
-}
-
-char uart_getc() {
-    while (mmio_read(UART0_FR) & (1 << 4)) {}
-    return mmio_read(UART0_DR);
-}
-
-
-
-/* a properly aligned buffer */
-extern volatile unsigned int mbox[36];
-
-#define MMIO_BASE       0x3F000000 + 0xffff000000000000
-#define MBOX_REQUEST    0
-
-/* channels */
-#define MBOX_CH_POWER   0
-#define MBOX_CH_FB      1
-#define MBOX_CH_VUART   2
-#define MBOX_CH_VCHIQ   3
-#define MBOX_CH_LEDS    4
-#define MBOX_CH_BTNS    5
-#define MBOX_CH_TOUCH   6
-#define MBOX_CH_COUNT   7
-#define MBOX_CH_PROP    8
-
-/* tags */
-#define MBOX_TAG_GETSERIAL      0x10004
-#define MBOX_TAG_SETCLKRATE     0x38002
-#define MBOX_TAG_LAST           0
-/* mailbox message buffer */
-volatile unsigned int  __attribute__((aligned(16))) mbox[36];
-
-#define VIDEOCORE_MBOX  (MMIO_BASE+0x0000B880)
-#define MBOX_READ       ((volatile unsigned int*)(VIDEOCORE_MBOX+0x0))
-#define MBOX_POLL       ((volatile unsigned int*)(VIDEOCORE_MBOX+0x10))
-#define MBOX_SENDER     ((volatile unsigned int*)(VIDEOCORE_MBOX+0x14))
-#define MBOX_STATUS     ((volatile unsigned int*)(VIDEOCORE_MBOX+0x18))
-#define MBOX_CONFIG     ((volatile unsigned int*)(VIDEOCORE_MBOX+0x1C))
-#define MBOX_WRITE      ((volatile unsigned int*)(VIDEOCORE_MBOX+0x20))
-#define MBOX_RESPONSE   0x80000000
-#define MBOX_FULL       0x80000000
-#define MBOX_EMPTY      0x40000000
-
 static inline void delay(unsigned clocks) {
     while (clocks-- > 0) {
         __asm__ __volatile__("nop");
@@ -57,24 +10,27 @@ static inline void delay(unsigned clocks) {
 }
 
 /// Performs a mailbox call.
-void mbox_call(uint8_t ch, const uint8_t *mbox) {
+static void mbox_call(uint8_t ch, const uint32_t *mbox) {
     ASSERT(IS_ALIGNED((vaddr_t) mbox, 0x10));
 
-    while (*MBOX_STATUS & MBOX_FULL) {
+    while (mmio_read(MBOX_STATUS) & MBOX_FULL) {
         delay(1);
     }
 
+    // Send a message.
     unsigned int value =
         (((vaddr_t) mbox) & ~0xf) // The address of the mailbox to be sent.
         | (ch & 0xf)              // Channel.
         ;
-    *MBOX_WRITE = value;
+    mmio_write(MBOX_WRITE, value);
+
+    // Wait for the response...
     while (1) {
-        while (*MBOX_STATUS & MBOX_EMPTY) {
+        while (mmio_read(MBOX_STATUS) & MBOX_EMPTY) {
             delay(1);
         }
 
-        if (value == *MBOX_READ) {
+        if (value == mmio_read(MBOX_READ)) {
             break;
         }
     }
@@ -82,16 +38,17 @@ void mbox_call(uint8_t ch, const uint8_t *mbox) {
 
 void uart_init(void) {
     // Set up the clock.
-    mbox[0] = 9*4;
-    mbox[1] = MBOX_REQUEST;
-    mbox[2] = MBOX_TAG_SETCLKRATE; // set clock rate
-    mbox[3] = 12;
-    mbox[4] = 8;
-    mbox[5] = 2;           // UART clock
-    mbox[6] = 4000000;     // 4Mhz
-    mbox[7] = 0;           // clear turbo
-    mbox[8] = MBOX_TAG_LAST;
-    mbox_call(MBOX_CH_PROP, (void *) mbox);
+    uint32_t __aligned(16) m[9];
+    m[0] = 9*4;                  // The size of the meessage.
+    m[1] = MBOX_CODE_REQUEST;
+    m[2] = MBOX_TAG_SETCLKRATE;  // Set clock rate.
+    m[3] = 12;                   // The value length.
+    m[4] = 8;                    // The clock ID.
+    m[5] = 2;                    // UART clock
+    m[6] = 4000000;              // The clock rate = 4MHz. (TODO: is 4MHz too low?)
+    m[7] = 0;                    // Allow turbo settings.
+    m[8] = MBOX_TAG_LAST;
+    mbox_call(MBOX_CH_PROP, m);
 
     // Initialize GPIO pins #14 and #15 as alternative function 0 (UART0).
     mmio_write(GPIO_FSEL1,
@@ -114,17 +71,21 @@ void uart_init(void) {
     mmio_write(UART0_CR, 0x301);        // Enable RX, TX, and UART0.
 }
 
-void arch_printchar(char ch) {
-    uart_send(ch);
-}
-
-char kdebug_readchar(void) {
-    return '\0'; // TODO:
-}
-
 bool kdebug_is_readable(void) {
-    // TODO: Not yet implemented.
-    return false;
+    return (mmio_read(UART0_FR) & (1 << 4)) == 0;
+}
+
+int kdebug_readchar(void) {
+    if (!kdebug_is_readable()) {
+        return -1;
+    }
+
+    return mmio_read(UART0_DR);
+}
+
+void arch_printchar(char ch) {
+    while (mmio_read(UART0_FR) & (1 << 5));
+    mmio_write(UART0_DR, ch);
 }
 
 void watchdog_init(void) {
