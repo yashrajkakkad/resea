@@ -73,7 +73,7 @@ paddr_t vaddr2paddr(struct task *task, vaddr_t vaddr) {
 
 error_t map_page(task_t tid, vaddr_t vaddr, paddr_t paddr, unsigned flags,
                  bool overwrite) {
-    flags |= overwrite ? (MAP_DELETE | MAP_UPDATE) : MAP_UPDATE;
+//    flags |= overwrite ? (MAP_DELETE | MAP_UPDATE) : MAP_UPDATE;
     while (true) {
         paddr_t kpage = pages_alloc(1);
         error_t err = task_map(tid, vaddr, paddr, kpage, flags);
