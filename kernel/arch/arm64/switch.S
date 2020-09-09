@@ -29,7 +29,7 @@ arm64_task_switch:
 arm64_start_task:
     bl stack_set_canary
 
-    ldr  x0, =0 /* AArch64, EL0t */
+    ldr  x0, =0xc0 /* AArch64, EL0t */
     msr  spsr_el1, x0
 
     ldr  x0, [sp]
