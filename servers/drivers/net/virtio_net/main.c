@@ -174,21 +174,24 @@ static uint16_t virtq_size(void) {
     return VIRTIO_COMMON_CFG_READ16(queue_size);
 }
 
-static void write_queue_desc(uint64_t paddr) {
+static void virtq_enable(void) {
+    VIRTIO_COMMON_CFG_WRITE16(queue_enable, 1);
+}
+
+static void virtq_set_desc_paddr(uint64_t paddr) {
     VIRTIO_COMMON_CFG_WRITE32(queue_desc_lo, paddr & 0xffffffff);
     VIRTIO_COMMON_CFG_WRITE32(queue_desc_hi, paddr >> 32);
 }
 
-static void write_queue_driver(uint64_t paddr) {
+static void virtq_set_driver_paddr(uint64_t paddr) {
     VIRTIO_COMMON_CFG_WRITE32(queue_driver_lo, paddr & 0xffffffff);
     VIRTIO_COMMON_CFG_WRITE32(queue_driver_hi, paddr >> 32);
 }
 
-static void write_queue_device(uint64_t paddr) {
+static void virtq_set_device_paddr(uint64_t paddr) {
     VIRTIO_COMMON_CFG_WRITE32(queue_device_lo, paddr & 0xffffffff);
     VIRTIO_COMMON_CFG_WRITE32(queue_device_hi, paddr >> 32);
 }
-
 
 //
 //  Driver
@@ -203,7 +206,19 @@ error_t driver_read_macaddr(uint8_t *mac) {
     return OK;
 }
 
+static struct virtio_virtq *tx_virtq = NULL;
+static struct virtio_virtq *rx_virtq = NULL;
+
 void driver_transmit(const uint8_t *payload, size_t len) {
+    static unsigned tx_next = 0;
+    struct virtio_net_buffer *buf = &tx_virtq->buffers[tx_next];
+    buf->header.flags = 0;
+    buf->header.gso_type = VIRTIO_NET_HDR_GSO_NONE;
+    buf->header.gso_size = 0;
+    buf->header.checksum_start = 0;
+    buf->header.checksum_offset = 0;
+    buf->header.num_buffers = 0;
+    memcpy(&buf->payload, payload, len);
 }
 
 void driver_handle_interrupt(void) {
@@ -358,9 +373,10 @@ void main(void) {
         memset(dma_buf(device_dma), 0, sizeof(struct virtq_event_suppress));
 
         // Register physical addresses.
-        write_queue_desc(dma_daddr(descs_dma));
-        write_queue_driver(dma_daddr(driver_dma));
-        write_queue_device(dma_daddr(device_dma));
+        virtq_set_desc_paddr(dma_daddr(descs_dma));
+        virtq_set_driver_paddr(dma_daddr(driver_dma));
+        virtq_set_device_paddr(dma_daddr(device_dma));
+        virtq_enable();
 
         virtqs[i].descs_dma = descs_dma;
         virtqs[i].descs = (struct virtq_desc *) dma_buf(descs_dma);
@@ -405,15 +421,11 @@ void main(void) {
     ASSERT_OK(ipc_serve("net"));
 
     // Register this driver.
-    /*
-    // Wait for the tcpip server.
     tcpip_tid = ipc_lookup("tcpip");
     ASSERT_OK(tcpip_tid);
     m.type = TCPIP_REGISTER_DEVICE_MSG;
     memcpy(m.tcpip_register_device.macaddr, mac, 6);
-    err = ipc_call(tcpip_tid, &m);
-    ASSERT_OK(err);
-    */
+    ASSERT_OK(ipc_call(tcpip_tid, &m));
 
     // The mainloop: receive and handle messages.
     INFO("ready");
