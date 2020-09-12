@@ -22,7 +22,12 @@ struct net_driver_ops {
 //  Virtio-net
 //
 static io_t common_cfg_io;
-static offset_t common_cfg_base;
+static offset_t common_cfg_off;
+static io_t device_cfg_io;
+static offset_t device_cfg_off;
+
+#define VIRTIO_PCI_CAP_COMMON_CFG  1
+#define VIRTIO_PCI_CAP_DEVICE_CFG  4
 
 // "2.1 Device Status Field"
 #define VIRTIO_STATUS_ACK        1
@@ -94,14 +99,14 @@ struct virtio_pci_common_cfg {
 } __packed;
 
 #define VIRTIO_COMMON_CFG_READ(size, field) \
-    io_read ## size(common_cfg_io, common_cfg_base + \
+    io_read ## size(common_cfg_io, common_cfg_off + \
         offsetof(struct virtio_pci_common_cfg, field))
 #define VIRTIO_COMMON_CFG_READ8(field)  VIRTIO_COMMON_CFG_READ(8, field)
 #define VIRTIO_COMMON_CFG_READ16(field) VIRTIO_COMMON_CFG_READ(16, field)
 #define VIRTIO_COMMON_CFG_READ32(field) VIRTIO_COMMON_CFG_READ(32, field)
 
 #define VIRTIO_COMMON_CFG_WRITE(size, field, value) \
-    io_write ## size(common_cfg_io, common_cfg_base + \
+    io_write ## size(common_cfg_io, common_cfg_off + \
         offsetof(struct virtio_pci_common_cfg, field), value)
 #define VIRTIO_COMMON_CFG_WRITE8(field, value)  VIRTIO_COMMON_CFG_WRITE(8, field, value)
 #define VIRTIO_COMMON_CFG_WRITE16(field, value) VIRTIO_COMMON_CFG_WRITE(16, field, value)
@@ -237,56 +242,46 @@ void main(void) {
     //     le32 length;    /* Length of the structure, in bytes. */
     // };
     uint8_t cap_off = pci_config_read(pci_device, 0x34, sizeof(uint8_t));
-    INFO("cap_off = %d", cap_off);
-    uint32_t bar_base = 0, bar_offset, bar_len;
     while (cap_off != 0) {
         uint8_t cap_id = pci_config_read(pci_device, cap_off, sizeof(uint8_t));
         uint8_t cfg_type = pci_config_read(pci_device, cap_off + 3, sizeof(uint8_t));
         uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, sizeof(uint8_t));
-        TRACE("cap_id=%x, cfg_type=%x, bar_index=%d", cap_id, cfg_type, bar_index);
-        if (cap_id == 9 && cfg_type == 1) {
-            // From "4.1.4.3 Common configuration structure layout":
-            //
-            // struct virtio_pci_common_cfg {
-            //     /* About the whole device. */
-            //     le32 device_feature_select;     /* read-write */
-            //     le32 device_feature;            /* read-only for driver */
-            //     le32 driver_feature_select;     /* read-write */
-            //     le32 driver_feature;            /* read-write */
-            //     le16 msix_config;               /* read-write */
-            //     le16 num_virtq;                /* read-only for driver */
-            //     u8 device_status;               /* read-write */
-            //     u8 config_generation;           /* read-only for driver */
-            //
-            //     /* About a specific virtqueue. */
-            //     le16 queue_select;              /* read-write */
-            //     le16 queue_size;                /* read-write */
-            //     le16 queue_msix_vector;         /* read-write */
-            //     le16 queue_enable;              /* read-write */
-            //     le16 queue_notify_off;          /* read-only for driver */
-            //     le64 queue_desc;                /* read-write */
-            //     le64 queue_driver;              /* read-write */
-            //     le64 queue_device;              /* read-write */
-            // };
 
+        TRACE("cap_id=%x, cfg_type=%x, bar_index=%d", cap_id, cfg_type, bar_index);
+
+        if (cap_id == 9 && cfg_type == VIRTIO_PCI_CAP_COMMON_CFG) {
             uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
             ASSERT((bar & 1) == 0 && "only supports memory-mapped I/O access for now");
-            bar_base = bar & ~0xf;
-            bar_offset = pci_config_read(pci_device, cap_off + 8, 4);
-            bar_len = pci_config_read(pci_device, cap_off + 12, 4);
+            uint32_t bar_base = bar & ~0xf;
+            size_t size = pci_config_read(pci_device, cap_off + 12, 4);
+            common_cfg_off = pci_config_read(pci_device, cap_off + 8, 4);
+            common_cfg_io = io_alloc_memory_fixed(
+                bar_base,
+                ALIGN_UP(common_cfg_off + size, PAGE_SIZE),
+                IO_ALLOC_CONTINUOUS
+            );
+        }
+
+        if (cap_id == 9 && cfg_type == VIRTIO_PCI_CAP_DEVICE_CFG) {
+            // Device-specific configuration space.
+            uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
+            ASSERT((bar & 1) == 0 && "only supports memory-mapped I/O access for now");
+            uint32_t bar_base = bar & ~0xf;
+            size_t size = pci_config_read(pci_device, cap_off + 12, 4);
+            device_cfg_off = pci_config_read(pci_device, cap_off + 8, 4);
+            device_cfg_io = io_alloc_memory_fixed(
+                bar_base,
+                ALIGN_UP(device_cfg_off + size, PAGE_SIZE),
+                IO_ALLOC_CONTINUOUS
+            );
         }
 
         cap_off = pci_config_read(pci_device, cap_off + 1, sizeof(uint8_t));
     }
 
-    if (!bar_base) {
+    if (!common_cfg_io || !device_cfg_io) {
         PANIC("failed to locate the BAR for the device access");
     }
-
-    INFO("bar: base=%p, offset=%x, len=%d", bar_base, bar_offset, bar_len);
-    common_cfg_base = bar_offset;
-    common_cfg_io = io_alloc_memory_fixed(bar_base,
-                                          bar_len + bar_offset, IO_ALLOC_CONTINUOUS);
 
     // "3.1.1 Driver Requirements: Device Initialization"
     write_device_status(0); // Reset the device.
