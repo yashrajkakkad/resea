@@ -36,6 +36,9 @@ static offset_t common_cfg_base;
 #define VIRTIO_NET_F_MAC         (1 << 5)
 #define VIRTIO_NET_F_STATUS      (1 << 16)
 
+#define VIRTIO_NET_QUEUE_RX  0
+#define VIRTIO_NET_QUEUE_TX  1
+
 #define VIRTQ_DESC_F_AVAIL     (1 << 7)
 #define VIRTQ_DESC_F_USED      (1 << 15)
 struct virtq_desc {
@@ -62,6 +65,10 @@ struct virtq_event_suppress {
 struct virtio_virtq {
     dma_t descs_dma;
     volatile struct virtq_desc *descs;
+    size_t num_descs;
+    dma_t buffers_dma;
+    volatile uint8_t *buffers;
+    size_t buf_len_max;
 };
 
 struct virtio_pci_common_cfg {
@@ -293,16 +300,16 @@ void main(void) {
     ASSERT((read_device_status() & VIRTIO_STATUS_FEAT_OK) != 0);
 
     // Initialize virtqueues.
-    struct virtio_virtq virtqs[NUM_VIRTQS_MAX];
     unsigned num_virtq = read_num_virtq();
-    ASSERT(num_virtq == 3);
+    ASSERT(num_virtq < NUM_VIRTQS_MAX);
+    struct virtio_virtq virtqs[NUM_VIRTQS_MAX];
     for (unsigned i = 0; i < num_virtq; i++) {
         virtq_select(i);
-        size_t queue_size = virtq_size();
-        ASSERT(queue_size < 1024 && "too large queue size");
+        size_t num_descs = virtq_size();
+        ASSERT(num_descs < 1024 && "too large queue size");
 
         // Allocate the descriptor area.
-        size_t descs_size = queue_size * sizeof(struct virtq_desc);
+        size_t descs_size = num_descs * sizeof(struct virtq_desc);
         dma_t descs_dma =
             dma_alloc(descs_size, DMA_ALLOC_TO_DEVICE | DMA_ALLOC_FROM_DEVICE);
         memset(dma_buf(descs_dma), 0, descs_size);
@@ -324,10 +331,36 @@ void main(void) {
 
         virtqs[i].descs_dma = descs_dma;
         virtqs[i].descs = (struct virtq_desc *) dma_buf(descs_dma);
+        virtqs[i].num_descs = num_descs;
+        virtqs[i].buf_len_max = PAGE_SIZE;
     }
 
     // Make the device active.
     write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER_OK);
+
+    // Allocate RX buffers.
+    struct virtio_virtq *rx_virtq = &virtqs[VIRTIO_NET_QUEUE_RX];
+    dma_t rx_dma = dma_alloc(
+        rx_virtq->buf_len_max * rx_virtq->num_descs,
+        DMA_ALLOC_FROM_DEVICE
+    );
+    rx_virtq->buffers_dma = rx_dma;
+    rx_virtq->buffers = dma_buf(rx_dma);
+    for (size_t i = 0; i < rx_virtq->num_descs; i++) {
+        rx_virtq->descs[i].addr = dma_daddr(rx_dma) + (rx_virtq->buf_len_max * i);
+    }
+
+    // Allocate TX buffers.
+    struct virtio_virtq *tx_virtq = &virtqs[VIRTIO_NET_QUEUE_TX];
+    dma_t tx_dma = dma_alloc(
+        tx_virtq->buf_len_max * tx_virtq->num_descs,
+        DMA_ALLOC_FROM_DEVICE
+    );
+    tx_virtq->buffers_dma = tx_dma;
+    tx_virtq->buffers = dma_buf(tx_dma);
+    for (size_t i = 0; i < tx_virtq->num_descs; i++) {
+        tx_virtq->descs[i].addr = dma_daddr(tx_dma) + (tx_virtq->buf_len_max * i);
+    }
 
 //    driver_init_for_pci(bar0_addr, bar0_len);
 
