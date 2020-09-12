@@ -17,11 +17,35 @@ struct net_driver_ops {
     void (*handle_interrupt)(void);
 };
 
-
 //
 //  Virtio-net
 //
+static io_t common_cfg_io;
+static offset_t common_cfg_base;
 
+struct virtio_pci_common_cfg {
+    uint32_t device_feature_select;
+    uint32_t device_feature;
+    uint32_t driver_feature_select;
+    uint32_t driver_feature;
+    uint16_t msix_config;
+    uint16_t num_queues;
+    uint8_t device_status;
+    uint8_t config_generation;
+    uint16_t queue_select;
+    uint16_t queue_size;
+    uint16_t queue_msix_vector;
+    uint16_t queue_enable;
+    uint16_t queue_notify_off;
+    uint64_t queue_desc;
+    uint64_t queue_driver;
+    uint64_t queue_device;
+} __packed;
+
+uint8_t virtio_read_device_status(void) {
+    offset_t off = offsetof(struct virtio_pci_common_cfg, device_status);
+    return io_read8(common_cfg_io, common_cfg_base + off);
+}
 
 //
 //  Driver
@@ -153,12 +177,13 @@ void main(void) {
 
     INFO("bar: base=%p, offset=%x, len=%d", bar_base, bar_offset, bar_len);
     ASSERT((bar_base & 1) == 0 && "only supports memory-mapped I/O access for now");
-    bar_offset += bar_base - ALIGN_DOWN(bar_base, PAGE_SIZE);
+    common_cfg_base = bar_offset + bar_base - ALIGN_DOWN(bar_base, PAGE_SIZE);
     bar_base = ALIGN_DOWN(bar_base, PAGE_SIZE);
-    io_t device = io_alloc_memory_fixed(ALIGN_DOWN(bar_base, PAGE_SIZE),
-                                        bar_len, IO_ALLOC_CONTINUOUS);
+    common_cfg_io = io_alloc_memory_fixed(ALIGN_DOWN(bar_base, PAGE_SIZE),
+                                          bar_len + bar_offset, IO_ALLOC_CONTINUOUS);
 
-    INFO("bar: base=%p, offset=%x, len=%d", bar_base, bar_offset, bar_len);
+    virtio_read_device_status();
+    INFO("bar: base=%p, io_base=%x, len=%d", bar_base, common_cfg_base, bar_len);
 
 
 //    driver_init_for_pci(bar0_addr, bar0_len);
