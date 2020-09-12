@@ -25,8 +25,11 @@ static io_t common_cfg_io;
 static offset_t common_cfg_off;
 static io_t device_cfg_io;
 static offset_t device_cfg_off;
+static io_t notify_struct_io;
+static offset_t notify_queue_off;
 
 #define VIRTIO_PCI_CAP_COMMON_CFG  1
+#define VIRTIO_PCI_CAP_NOTIFY_CFG  2
 #define VIRTIO_PCI_CAP_DEVICE_CFG  4
 
 // "2.1 Device Status Field"
@@ -95,11 +98,12 @@ struct virtq_event_suppress {
 
 /// A virtqueue.
 struct virtio_virtq {
+    unsigned index;
     dma_t descs_dma;
     volatile struct virtq_desc *descs;
     size_t num_descs;
     dma_t buffers_dma;
-    volatile uint8_t *buffers;
+    volatile void *buffers;
 };
 
 struct virtio_pci_common_cfg {
@@ -193,6 +197,11 @@ static void virtq_set_device_paddr(uint64_t paddr) {
     VIRTIO_COMMON_CFG_WRITE32(queue_device_hi, paddr >> 32);
 }
 
+static void write_queue_notify(unsigned index) {
+    io_write16(notify_struct_io, notify_queue_off, index);
+}
+
+
 //
 //  Driver
 //
@@ -207,18 +216,26 @@ error_t driver_read_macaddr(uint8_t *mac) {
 }
 
 static struct virtio_virtq *tx_virtq = NULL;
-static struct virtio_virtq *rx_virtq = NULL;
+// static struct virtio_virtq *rx_virtq = NULL;
 
 void driver_transmit(const uint8_t *payload, size_t len) {
     static unsigned tx_next = 0;
-    struct virtio_net_buffer *buf = &tx_virtq->buffers[tx_next];
+
+    struct virtio_net_buffer *buffers =
+        (struct virtio_net_buffer *) tx_virtq->buffers;
+    volatile struct virtio_net_buffer *buf = &buffers[tx_next];
+    ASSERT(len <= sizeof(buf->payload));
+
     buf->header.flags = 0;
     buf->header.gso_type = VIRTIO_NET_HDR_GSO_NONE;
     buf->header.gso_size = 0;
     buf->header.checksum_start = 0;
     buf->header.checksum_offset = 0;
     buf->header.num_buffers = 0;
-    memcpy(&buf->payload, payload, len);
+    memcpy((uint8_t *) &buf->payload, payload, len);
+
+    write_queue_notify(tx_virtq->index);
+    tx_next = (tx_next + 1) % tx_virtq->num_descs;
 }
 
 void driver_handle_interrupt(void) {
@@ -295,6 +312,7 @@ void main(void) {
     //     le32 length;    /* Length of the structure, in bytes. */
     // };
     uint8_t cap_off = pci_config_read(pci_device, 0x34, sizeof(uint8_t));
+    uint32_t notify_cap_off, notify_off_multiplier;
     while (cap_off != 0) {
         uint8_t cap_id = pci_config_read(pci_device, cap_off, sizeof(uint8_t));
         uint8_t cfg_type = pci_config_read(pci_device, cap_off + 3, sizeof(uint8_t));
@@ -329,12 +347,28 @@ void main(void) {
             );
         }
 
+        if (cap_id == 9 && cfg_type == VIRTIO_PCI_CAP_NOTIFY_CFG) {
+            // Notification structure:
+            //
+            // struct virtio_pci_notify_cap {
+            //     struct virtio_pci_cap cap;
+            //     le32 notify_off_multiplier; /* Multiplier for queue_notify_off. */
+            // };
+            notify_cap_off = pci_config_read(pci_device, cap_off + 8, 4);
+            notify_off_multiplier =
+                pci_config_read(pci_device, cap_off + 16, 4);
+        }
+
         cap_off = pci_config_read(pci_device, cap_off + 1, sizeof(uint8_t));
     }
 
-    if (!common_cfg_io || !device_cfg_io) {
-        PANIC("failed to locate the BAR for the device access");
-    }
+    ASSERT(common_cfg_io && device_cfg_io &&
+        "failed to locate the BAR for the device access");
+
+    uint16_t queue_notify_off = VIRTIO_COMMON_CFG_READ16(queue_notify_off);
+    notify_queue_off = notify_cap_off + queue_notify_off * notify_off_multiplier;
+
+    ASSERT(notify_queue_off && "notify_queue_off should be non-zero");
 
     // "3.1.1 Driver Requirements: Device Initialization"
     write_device_status(0); // Reset the device.
@@ -378,6 +412,7 @@ void main(void) {
         virtq_set_device_paddr(dma_daddr(device_dma));
         virtq_enable();
 
+        virtqs[i].index = i;
         virtqs[i].descs_dma = descs_dma;
         virtqs[i].descs = (struct virtq_desc *) dma_buf(descs_dma);
         virtqs[i].num_descs = num_descs;
