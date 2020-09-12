@@ -216,7 +216,7 @@ error_t driver_read_macaddr(uint8_t *mac) {
 }
 
 static struct virtio_virtq *tx_virtq = NULL;
-// static struct virtio_virtq *rx_virtq = NULL;
+static struct virtio_virtq *rx_virtq = NULL;
 
 void driver_transmit(const uint8_t *payload, size_t len) {
     static unsigned tx_next = 0;
@@ -239,6 +239,7 @@ void driver_transmit(const uint8_t *payload, size_t len) {
 }
 
 void driver_handle_interrupt(void) {
+    INFO("Handle IRQ");
 }
 
 error_t driver_init_for_pci(receive_callback_t receive) {
@@ -357,6 +358,15 @@ void main(void) {
             notify_cap_off = pci_config_read(pci_device, cap_off + 8, 4);
             notify_off_multiplier =
                 pci_config_read(pci_device, cap_off + 16, 4);
+            uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
+            ASSERT((bar & 1) == 0 && "only supports memory-mapped I/O access for now");
+            uint32_t bar_base = bar & ~0xf;
+            size_t size = pci_config_read(pci_device, cap_off + 12, 4);
+            notify_struct_io = io_alloc_memory_fixed(
+                bar_base,
+                ALIGN_UP(notify_cap_off + size, PAGE_SIZE),
+                IO_ALLOC_CONTINUOUS
+            );
         }
 
         cap_off = pci_config_read(pci_device, cap_off + 1, sizeof(uint8_t));
@@ -423,7 +433,7 @@ void main(void) {
 
     // Allocate RX buffers.
     size_t buffer_size = sizeof(struct virtio_net_buffer);
-    struct virtio_virtq *rx_virtq = &virtqs[VIRTIO_NET_QUEUE_RX];
+    rx_virtq = &virtqs[VIRTIO_NET_QUEUE_RX];
     dma_t rx_dma = dma_alloc(
         buffer_size * rx_virtq->num_descs,
         DMA_ALLOC_FROM_DEVICE
@@ -435,7 +445,7 @@ void main(void) {
     }
 
     // Allocate TX buffers.
-    struct virtio_virtq *tx_virtq = &virtqs[VIRTIO_NET_QUEUE_TX];
+    tx_virtq = &virtqs[VIRTIO_NET_QUEUE_TX];
     dma_t tx_dma = dma_alloc(
         buffer_size * tx_virtq->num_descs,
         DMA_ALLOC_FROM_DEVICE
@@ -451,7 +461,6 @@ void main(void) {
     INFO("initialized the device");
     INFO("MAC address = %02x:%02x:%02x:%02x:%02x:%02x",
          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
 
     ASSERT_OK(ipc_serve("net"));
 
