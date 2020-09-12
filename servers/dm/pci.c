@@ -64,6 +64,8 @@ uint32_t pci_read_config(struct pci_device *dev, unsigned offset, unsigned size)
             return read16(dev->bus, dev->slot, offset);
         case 4:
             return read32(dev->bus, dev->slot, offset);
+        default:
+            return 0;
     }
 }
 
@@ -71,10 +73,12 @@ void pci_write_config(struct pci_device *dev, unsigned offset, unsigned size,
                       uint32_t value) {
     switch (size) {
         case 1:
-            write8(dev->bus, dev->slot, offset, value);
+//            write8(dev->bus, dev->slot, offset, value);
+            NYI();
             break;
         case 2:
-            write16(dev->bus, dev->slot, offset, value);
+//            write16(dev->bus, dev->slot, offset, value);
+            NYI();
             break;
         case 4:
             write32(dev->bus, dev->slot, offset, value);

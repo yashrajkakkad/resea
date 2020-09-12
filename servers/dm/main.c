@@ -80,8 +80,27 @@ void main(void) {
                     m.dm_pci_read_config.offset,
                     m.dm_pci_read_config.size
                 );
+
                 m.type = DM_PCI_READ_CONFIG_REPLY_MSG;
                 m.dm_pci_read_config_reply.value = value;
+                ipc_reply(m.src, &m);
+                break;
+            }
+            case DM_PCI_WRITE_CONFIG_MSG: {
+                struct device *dev = handle_get(m.src, m.dm_pci_write_config.handle);
+                if (!dev || dev->bus_type != BUS_TYPE_PCI) {
+                    ipc_reply_err(m.src, ERR_INVALID_ARG);
+                    break;
+                }
+
+                pci_write_config(
+                    &dev->pci,
+                    m.dm_pci_write_config.offset,
+                    m.dm_pci_write_config.size,
+                    m.dm_pci_write_config.value
+                );
+
+                m.type = DM_PCI_WRITE_CONFIG_REPLY_MSG;
                 ipc_reply(m.src, &m);
                 break;
             }
