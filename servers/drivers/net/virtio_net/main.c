@@ -105,14 +105,17 @@ void main(void) {
     //     le32 offset;    /* Offset within bar. */
     //     le32 length;    /* Length of the structure, in bytes. */
     // };
-    uint8_t cap_off = pci_config_read(pci_device, 0x34, 1);
+    uint8_t cap_off = pci_config_read(pci_device, 0x34, sizeof(uint8_t));
     INFO("cap_off = %d", cap_off);
     while (cap_off != 0) {
-        uint8_t cap_id = pci_config_read(pci_device, cap_off, 1);
-        uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, 1);
-        INFO("cap_id = %x, bar_index = %d", cap_id, bar_index);
-        cap_off = pci_config_read(pci_device, cap_off + 1, 1);
+        uint8_t cap_id = pci_config_read(pci_device, cap_off, sizeof(uint8_t));
+        uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, sizeof(uint8_t));
+        uint8_t cfg_type = pci_config_read(pci_device, cap_off + 3, sizeof(uint8_t));
+        TRACE("cap_id=%x, cfg_type=%x, bar_index=%d", cap_id, bar_index);
+        cap_off = pci_config_read(pci_device, cap_off + 1, sizeof(uint8_t));
     }
+
+
 
 //    driver_init_for_pci(bar0_addr, bar0_len);
 
