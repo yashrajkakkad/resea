@@ -68,30 +68,52 @@ static void transmit(void) {
     free((void *) m.net_tx.payload);
 }
 
+static task_t dm_server;
+
+uint32_t pci_config_read(handle_t device, unsigned offset, unsigned size) {
+    struct message m;
+    m.type = DM_PCI_READ_CONFIG_MSG;
+    m.dm_pci_read_config.handle = device;
+    m.dm_pci_read_config.offset = offset;
+    m.dm_pci_read_config.size = size;
+    ASSERT_OK(ipc_call(dm_server, &m));
+    return m.dm_pci_read_config_reply.value;
+}
+
 void main(void) {
     TRACE("starting...");
 
     // Look for the e1000...
-    task_t dm_server = ipc_lookup("dm");
+    dm_server = ipc_lookup("dm");
     struct message m;
     m.type = DM_ATTACH_PCI_DEVICE_MSG;
     m.dm_attach_pci_device.vendor_id = 0x1af4;
     m.dm_attach_pci_device.device_id = 0x1000;
     ASSERT_OK(ipc_call(dm_server, &m));
-    handle_t device = m.dm_attach_pci_device_reply.handle;
+    handle_t pci_device = m.dm_attach_pci_device_reply.handle;
 
-    m.type = DM_PCI_GET_CONFIG_MSG;
-    m.dm_pci_get_config.handle = device;
-    ASSERT_OK(ipc_call(dm_server, &m));
-    uint32_t bar0_addr = m.dm_pci_get_config_reply.bar0_addr;
-    uint32_t bar0_len = m.dm_pci_get_config_reply.bar0_len;
-    uint8_t irq = m.dm_pci_get_config_reply.irq;
+    // Walk capabilities list. A capability consists of the following fields
+    // (from "4.1.4 Virtio Structure PCI Capabilities"):
+    //
+    // struct virtio_pci_cap {
+    //     u8 cap_vndr;    /* Generic PCI field: PCI_CAP_ID_VNDR */
+    //     u8 cap_next;    /* Generic PCI field: next ptr. */
+    //     u8 cap_len;     /* Generic PCI field: capability length */
+    //     u8 cfg_type;    /* Identifies the structure. */
+    //     u8 bar;         /* Where to find it. */
+    //     u8 padding[3];  /* Pad to full dword. */
+    //     le32 offset;    /* Offset within bar. */
+    //     le32 length;    /* Length of the structure, in bytes. */
+    // };
+    uint8_t cap_off = pci_config_read(pci_device, 0x34, 1);
+    INFO("cap_off = %d", cap_off);
+    while (cap_off != 0) {
+        uint8_t cap_id = pci_config_read(pci_device, cap_off, 1);
+        uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, 1);
+        INFO("cap_id = %x, bar_index = %d", cap_id, bar_index);
+        cap_off = pci_config_read(pci_device, cap_off + 1, 1);
+    }
 
-    m.type = DM_PCI_ENABLE_BUS_MASTER_MSG;
-    m.dm_pci_enable_bus_master.handle = device;
-    ASSERT_OK(ipc_call(dm_server, &m));
-
-    ASSERT_OK(irq_acquire(irq));
 //    driver_init_for_pci(bar0_addr, bar0_len);
 
     uint8_t mac[6];
@@ -100,14 +122,14 @@ void main(void) {
     INFO("MAC address = %02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2],
          mac[3], mac[4], mac[5]);
 
-    // Wait for the tcpip server.
-    tcpip_tid = ipc_lookup("tcpip");
-    ASSERT_OK(tcpip_tid);
 
     ASSERT_OK(ipc_serve("net"));
 
     // Register this driver.
     /*
+    // Wait for the tcpip server.
+    tcpip_tid = ipc_lookup("tcpip");
+    ASSERT_OK(tcpip_tid);
     m.type = TCPIP_REGISTER_DEVICE_MSG;
     memcpy(m.tcpip_register_device.macaddr, mac, 6);
     err = ipc_call(tcpip_tid, &m);
