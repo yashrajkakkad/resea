@@ -3,6 +3,7 @@
 #include <resea/malloc.h>
 #include <resea/printf.h>
 #include <driver/irq.h>
+#include <driver/io.h>
 #include <string.h>
 
 //
@@ -107,15 +108,34 @@ void main(void) {
     // };
     uint8_t cap_off = pci_config_read(pci_device, 0x34, sizeof(uint8_t));
     INFO("cap_off = %d", cap_off);
+    int bar_index = 0;
     while (cap_off != 0) {
         uint8_t cap_id = pci_config_read(pci_device, cap_off, sizeof(uint8_t));
-        uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, sizeof(uint8_t));
         uint8_t cfg_type = pci_config_read(pci_device, cap_off + 3, sizeof(uint8_t));
-        TRACE("cap_id=%x, cfg_type=%x, bar_index=%d", cap_id, bar_index);
+        TRACE("cap_id=%x, cfg_type=%x, bar_index=%d", cap_id, cfg_type, bar_index);
+        if (cap_id == 9 && cfg_type == 5) {
+            // From "4.1.4.7 PCI configuration access capability":
+            //
+            // struct virtio_pci_cfg_cap {
+            //     struct virtio_pci_cap cap;
+            //     u8 pci_cfg_data[4]; /* Data for BAR access. */
+            // };
+
+            // TODO:
+            uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, sizeof(uint8_t));
+        }
+
         cap_off = pci_config_read(pci_device, cap_off + 1, sizeof(uint8_t));
     }
 
+    if (bar_index < 0) {
+        PANIC("failed to locate the BAR for the device access");
+    }
 
+    uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, sizeof(uint32_t));
+    INFO("bar%d: %p", bar_index, bar);
+    ASSERT((bar & 1) == 1 && "only supports port-mapped access for now");
+    io_t device = io_alloc_port(bar & ~1, 0x1000 /* FIXME: */, IO_ALLOC_NORMAL);
 
 //    driver_init_for_pci(bar0_addr, bar0_len);
 
