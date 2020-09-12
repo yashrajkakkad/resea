@@ -108,34 +108,58 @@ void main(void) {
     // };
     uint8_t cap_off = pci_config_read(pci_device, 0x34, sizeof(uint8_t));
     INFO("cap_off = %d", cap_off);
-    int bar_index = 0;
+    uint32_t bar_base = 0, bar_offset, bar_len;
     while (cap_off != 0) {
         uint8_t cap_id = pci_config_read(pci_device, cap_off, sizeof(uint8_t));
         uint8_t cfg_type = pci_config_read(pci_device, cap_off + 3, sizeof(uint8_t));
+        uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, sizeof(uint8_t));
         TRACE("cap_id=%x, cfg_type=%x, bar_index=%d", cap_id, cfg_type, bar_index);
-        if (cap_id == 9 && cfg_type == 5) {
-            // From "4.1.4.7 PCI configuration access capability":
+        if (cap_id == 9 && cfg_type == 1) {
+            // From "4.1.4.3 Common configuration structure layout":
             //
-            // struct virtio_pci_cfg_cap {
-            //     struct virtio_pci_cap cap;
-            //     u8 pci_cfg_data[4]; /* Data for BAR access. */
+            // struct virtio_pci_common_cfg {
+            //     /* About the whole device. */
+            //     le32 device_feature_select;     /* read-write */
+            //     le32 device_feature;            /* read-only for driver */
+            //     le32 driver_feature_select;     /* read-write */
+            //     le32 driver_feature;            /* read-write */
+            //     le16 msix_config;               /* read-write */
+            //     le16 num_queues;                /* read-only for driver */
+            //     u8 device_status;               /* read-write */
+            //     u8 config_generation;           /* read-only for driver */
+            //
+            //     /* About a specific virtqueue. */
+            //     le16 queue_select;              /* read-write */
+            //     le16 queue_size;                /* read-write */
+            //     le16 queue_msix_vector;         /* read-write */
+            //     le16 queue_enable;              /* read-write */
+            //     le16 queue_notify_off;          /* read-only for driver */
+            //     le64 queue_desc;                /* read-write */
+            //     le64 queue_driver;              /* read-write */
+            //     le64 queue_device;              /* read-write */
             // };
 
-            // TODO:
-            uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, sizeof(uint8_t));
+            bar_base = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
+            bar_offset = pci_config_read(pci_device, cap_off + 12, 4);
+            bar_len = pci_config_read(pci_device, cap_off + 12, 4);
         }
 
         cap_off = pci_config_read(pci_device, cap_off + 1, sizeof(uint8_t));
     }
 
-    if (bar_index < 0) {
+    if (!bar_base) {
         PANIC("failed to locate the BAR for the device access");
     }
 
-    uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, sizeof(uint32_t));
-    INFO("bar%d: %p", bar_index, bar);
-    ASSERT((bar & 1) == 1 && "only supports port-mapped access for now");
-    io_t device = io_alloc_port(bar & ~1, 0x1000 /* FIXME: */, IO_ALLOC_NORMAL);
+    INFO("bar: base=%p, offset=%x, len=%d", bar_base, bar_offset, bar_len);
+    ASSERT((bar_base & 1) == 0 && "only supports memory-mapped I/O access for now");
+    bar_offset += bar_base - ALIGN_DOWN(bar_base, PAGE_SIZE);
+    bar_base = ALIGN_DOWN(bar_base, PAGE_SIZE);
+    io_t device = io_alloc_memory_fixed(ALIGN_DOWN(bar_base, PAGE_SIZE),
+                                        bar_len, IO_ALLOC_CONTINUOUS);
+
+    INFO("bar: base=%p, offset=%x, len=%d", bar_base, bar_offset, bar_len);
+
 
 //    driver_init_for_pci(bar0_addr, bar0_len);
 
