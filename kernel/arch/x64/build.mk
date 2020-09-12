@@ -15,6 +15,7 @@ QEMUFLAGS += -device virtio-net,netdev=net1,mac=52:54:00:ab:cd:ef
 QEMUFLAGS += -object filter-dump,id=fiter0,netdev=net0,file=network.pcap
 QEMUFLAGS += $(if $(SMP), -smp $(SMP))
 QEMUFLAGS += $(if $(GUI),,-nographic)
+QEMUFLAGS += -trace events=qemu-trace.tmp
 
 .PHONY: run
 run: $(kernel_image)

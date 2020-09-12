@@ -23,6 +23,17 @@ struct net_driver_ops {
 static io_t common_cfg_io;
 static offset_t common_cfg_base;
 
+// "2.1 Device Status Field"
+#define VIRTIO_STATUS_ACK        1
+#define VIRTIO_STATUS_DRIVER     2
+#define VIRTIO_STATUS_DRIVER_OK  4
+#define VIRTIO_STATUS_FEAT_OK    8
+
+#define VIRTIO_F_VERSION_1       (1ull << 32)
+
+#define VIRTIO_NET_F_MAC         (1 << 5)
+#define VIRTIO_NET_F_STATUS      (1 << 16)
+
 struct virtio_pci_common_cfg {
     uint32_t device_feature_select;
     uint32_t device_feature;
@@ -42,9 +53,27 @@ struct virtio_pci_common_cfg {
     uint64_t queue_device;
 } __packed;
 
-uint8_t virtio_read_device_status(void) {
+static uint8_t read_device_status(void) {
     offset_t off = offsetof(struct virtio_pci_common_cfg, device_status);
     return io_read8(common_cfg_io, common_cfg_base + off);
+}
+
+static void write_device_status(uint8_t value) {
+    offset_t off = offsetof(struct virtio_pci_common_cfg, device_status);
+    return io_write8(common_cfg_io, common_cfg_base + off, value);
+}
+
+static void write_driver_feature(uint64_t value) {
+    offset_t select_off = offsetof(struct virtio_pci_common_cfg, driver_feature_select);
+    offset_t off = offsetof(struct virtio_pci_common_cfg, driver_feature);
+
+    // Select and set feature bits 32 to 63.
+    io_write32(common_cfg_io, common_cfg_base + select_off, 1);
+    io_write32(common_cfg_io, common_cfg_base + off, value >> 32);
+
+    // Select and set feature bits 0 to 31.
+    io_write32(common_cfg_io, common_cfg_base + select_off, 0);
+    io_write32(common_cfg_io, common_cfg_base + off, value & 0xffffffff);
 }
 
 //
@@ -163,8 +192,10 @@ void main(void) {
             //     le64 queue_device;              /* read-write */
             // };
 
-            bar_base = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
-            bar_offset = pci_config_read(pci_device, cap_off + 12, 4);
+            uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
+            ASSERT((bar & 1) == 0 && "only supports memory-mapped I/O access for now");
+            bar_base = bar & ~0xf;
+            bar_offset = pci_config_read(pci_device, cap_off + 8, 4);
             bar_len = pci_config_read(pci_device, cap_off + 12, 4);
         }
 
@@ -176,14 +207,28 @@ void main(void) {
     }
 
     INFO("bar: base=%p, offset=%x, len=%d", bar_base, bar_offset, bar_len);
-    ASSERT((bar_base & 1) == 0 && "only supports memory-mapped I/O access for now");
-    common_cfg_base = bar_offset + bar_base - ALIGN_DOWN(bar_base, PAGE_SIZE);
-    bar_base = ALIGN_DOWN(bar_base, PAGE_SIZE);
-    common_cfg_io = io_alloc_memory_fixed(ALIGN_DOWN(bar_base, PAGE_SIZE),
+    common_cfg_base = bar_offset;
+    common_cfg_io = io_alloc_memory_fixed(bar_base,
                                           bar_len + bar_offset, IO_ALLOC_CONTINUOUS);
 
-    virtio_read_device_status();
-    INFO("bar: base=%p, io_base=%x, len=%d", bar_base, common_cfg_base, bar_len);
+    uint16_t num_queues = io_read16(common_cfg_io, common_cfg_base + offsetof(struct virtio_pci_common_cfg, num_queues));
+    DBG("nq = %d", num_queues);
+
+    // "3.1.1 Driver Requirements: Device Initialization"
+    write_device_status(0); // Reset the device.
+    write_device_status(read_device_status() | VIRTIO_STATUS_ACK);
+    write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER);
+
+    // Feature negotiation.
+    uint32_t feats = VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS;
+    write_driver_feature(VIRTIO_F_VERSION_1 | feats);
+
+    write_device_status(read_device_status() | VIRTIO_STATUS_FEAT_OK);
+    ASSERT((read_device_status() & VIRTIO_STATUS_FEAT_OK) != 0);
+
+
+    // Make the device active.
+    write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER_OK);
 
 
 //    driver_init_for_pci(bar0_addr, bar0_len);
