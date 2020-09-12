@@ -40,9 +40,20 @@ static offset_t device_cfg_off;
 
 #define VIRTIO_NET_F_MAC         (1 << 5)
 #define VIRTIO_NET_F_STATUS      (1 << 16)
-
 #define VIRTIO_NET_QUEUE_RX  0
 #define VIRTIO_NET_QUEUE_TX  1
+
+struct virtio_net_config {
+    uint8_t mac0;
+    uint8_t mac1;
+    uint8_t mac2;
+    uint8_t mac3;
+    uint8_t mac4;
+    uint8_t mac5;
+    uint16_t status;
+    uint16_t max_virtqueue_pairs;
+    uint16_t mtu;
+} __packed;
 
 #define VIRTQ_DESC_F_AVAIL     (1 << 7)
 #define VIRTQ_DESC_F_USED      (1 << 15)
@@ -112,6 +123,12 @@ struct virtio_pci_common_cfg {
 #define VIRTIO_COMMON_CFG_WRITE16(field, value) VIRTIO_COMMON_CFG_WRITE(16, field, value)
 #define VIRTIO_COMMON_CFG_WRITE32(field, value) VIRTIO_COMMON_CFG_WRITE(32, field, value)
 
+#define VIRTIO_DEVICE_CFG_READ(size, struct_name, field) \
+    io_read ## size(device_cfg_io, device_cfg_off + offsetof(struct_name, field))
+#define VIRTIO_DEVICE_CFG_READ8(struct_name, field)  VIRTIO_DEVICE_CFG_READ(8, struct_name, field)
+#define VIRTIO_DEVICE_CFG_READ16(struct_name, field) VIRTIO_DEVICE_CFG_READ(16, struct_name, field)
+#define VIRTIO_DEVICE_CFG_READ32(struct_name, field) VIRTIO_DEVICE_CFG_READ(32, struct_name, field)
+
 static uint8_t read_device_status(void) {
     return VIRTIO_COMMON_CFG_READ8(device_status);
 }
@@ -162,13 +179,19 @@ static void write_queue_device(uint64_t paddr) {
 //  Driver
 //
 error_t driver_read_macaddr(uint8_t *mac) {
+    mac[0] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac0);
+    mac[1] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac1);
+    mac[2] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac2);
+    mac[3] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac3);
+    mac[4] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac4);
+    mac[5] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac5);
     return OK;
 }
 
 void driver_transmit(const uint8_t *payload, size_t len) {
 }
 
-void driver_handle_interrupt() {
+void driver_handle_interrupt(void) {
 }
 
 error_t driver_init_for_pci(receive_callback_t receive) {
