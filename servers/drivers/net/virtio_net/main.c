@@ -4,6 +4,7 @@
 #include <resea/printf.h>
 #include <driver/irq.h>
 #include <driver/io.h>
+#include <driver/dma.h>
 #include <string.h>
 
 //
@@ -27,12 +28,41 @@ static offset_t common_cfg_base;
 #define VIRTIO_STATUS_ACK        1
 #define VIRTIO_STATUS_DRIVER     2
 #define VIRTIO_STATUS_DRIVER_OK  4
-#define VIRTIO_STATUS_FEAT_OK    8
+#define VIRTIO_STATUS_FEAT_OK    82
 
 #define VIRTIO_F_VERSION_1       (1ull << 32)
+#define VIRTIO_F_RING_PACKED     (1ull << 34)
 
 #define VIRTIO_NET_F_MAC         (1 << 5)
 #define VIRTIO_NET_F_STATUS      (1 << 16)
+
+#define VIRTQ_DESC_F_AVAIL     (1 << 7)
+#define VIRTQ_DESC_F_USED      (1 << 15)
+struct virtq_desc {
+    /// The physical buffer address.
+    uint64_t addr;
+    /// The buffer Length.
+    uint32_t len;
+    /// The buffer ID.
+    uint16_t id;
+    /// Flags.
+    uint16_t flags;
+} __packed;
+
+struct virtq_event_suppress {
+    uint16_t desc;
+    uint16_t flags;
+} __packed;
+
+
+/// The maximum number of virtqueues.
+#define NUM_VIRTQS_MAX 8
+
+/// A virtqueue.
+struct virtio_virtq {
+    dma_t descs_dma;
+    volatile struct virtq_desc *descs;
+};
 
 struct virtio_pci_common_cfg {
     uint32_t device_feature_select;
@@ -53,27 +83,48 @@ struct virtio_pci_common_cfg {
     uint64_t queue_device;
 } __packed;
 
+#define VIRTIO_COMMON_CFG_READ(size, field) \
+    io_read ## size(common_cfg_io, common_cfg_base + \
+        offsetof(struct virtio_pci_common_cfg, field))
+#define VIRTIO_COMMON_CFG_READ8(field)  VIRTIO_COMMON_CFG_READ(8, field)
+#define VIRTIO_COMMON_CFG_READ16(field) VIRTIO_COMMON_CFG_READ(16, field)
+#define VIRTIO_COMMON_CFG_READ32(field) VIRTIO_COMMON_CFG_READ(32, field)
+
+#define VIRTIO_COMMON_CFG_WRITE(size, field, value) \
+    io_write ## size(common_cfg_io, common_cfg_base + \
+        offsetof(struct virtio_pci_common_cfg, field), value)
+#define VIRTIO_COMMON_CFG_WRITE8(field, value)  VIRTIO_COMMON_CFG_WRITE(8, field, value)
+#define VIRTIO_COMMON_CFG_WRITE16(field, value) VIRTIO_COMMON_CFG_WRITE(16, field, value)
+#define VIRTIO_COMMON_CFG_WRITE32(field, value) VIRTIO_COMMON_CFG_WRITE(32, field, value)
+
 static uint8_t read_device_status(void) {
-    offset_t off = offsetof(struct virtio_pci_common_cfg, device_status);
-    return io_read8(common_cfg_io, common_cfg_base + off);
+    return VIRTIO_COMMON_CFG_READ8(device_status);
 }
 
 static void write_device_status(uint8_t value) {
-    offset_t off = offsetof(struct virtio_pci_common_cfg, device_status);
-    return io_write8(common_cfg_io, common_cfg_base + off, value);
+    VIRTIO_COMMON_CFG_WRITE8(device_status, value);
 }
 
 static void write_driver_feature(uint64_t value) {
-    offset_t select_off = offsetof(struct virtio_pci_common_cfg, driver_feature_select);
-    offset_t off = offsetof(struct virtio_pci_common_cfg, driver_feature);
+    // Select and set feature bits 0 to 31.
+    VIRTIO_COMMON_CFG_WRITE32(driver_feature_select, 0);
+    VIRTIO_COMMON_CFG_WRITE32(driver_feature, value & 0xffffffff);
 
     // Select and set feature bits 32 to 63.
-    io_write32(common_cfg_io, common_cfg_base + select_off, 1);
-    io_write32(common_cfg_io, common_cfg_base + off, value >> 32);
+    VIRTIO_COMMON_CFG_WRITE32(driver_feature_select, 1);
+    VIRTIO_COMMON_CFG_WRITE32(driver_feature, value >> 32);
+}
 
-    // Select and set feature bits 0 to 31.
-    io_write32(common_cfg_io, common_cfg_base + select_off, 0);
-    io_write32(common_cfg_io, common_cfg_base + off, value & 0xffffffff);
+static uint16_t read_num_virtq(void) {
+    return VIRTIO_COMMON_CFG_READ16(num_queues);
+}
+
+static void virtq_select(unsigned index) {
+    VIRTIO_COMMON_CFG_WRITE8(queue_select, index);
+}
+
+static uint16_t virtq_size(void) {
+    return VIRTIO_COMMON_CFG_READ16(queue_size);
 }
 
 //
@@ -177,7 +228,7 @@ void main(void) {
             //     le32 driver_feature_select;     /* read-write */
             //     le32 driver_feature;            /* read-write */
             //     le16 msix_config;               /* read-write */
-            //     le16 num_queues;                /* read-only for driver */
+            //     le16 num_virtq;                /* read-only for driver */
             //     u8 device_status;               /* read-write */
             //     u8 config_generation;           /* read-only for driver */
             //
@@ -211,9 +262,6 @@ void main(void) {
     common_cfg_io = io_alloc_memory_fixed(bar_base,
                                           bar_len + bar_offset, IO_ALLOC_CONTINUOUS);
 
-    uint16_t num_queues = io_read16(common_cfg_io, common_cfg_base + offsetof(struct virtio_pci_common_cfg, num_queues));
-    DBG("nq = %d", num_queues);
-
     // "3.1.1 Driver Requirements: Device Initialization"
     write_device_status(0); // Reset the device.
     write_device_status(read_device_status() | VIRTIO_STATUS_ACK);
@@ -221,15 +269,41 @@ void main(void) {
 
     // Feature negotiation.
     uint32_t feats = VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS;
-    write_driver_feature(VIRTIO_F_VERSION_1 | feats);
-
+    write_driver_feature(feats | VIRTIO_F_VERSION_1 | VIRTIO_F_RING_PACKED);
     write_device_status(read_device_status() | VIRTIO_STATUS_FEAT_OK);
     ASSERT((read_device_status() & VIRTIO_STATUS_FEAT_OK) != 0);
 
+    // Initialize virtqueues.
+    struct virtio_virtq virtqs[NUM_VIRTQS_MAX];
+    unsigned num_virtq = read_num_virtq();
+    ASSERT(num_virtq == 3);
+    for (unsigned i = 0; i < num_virtq; i++) {
+        virtq_select(i);
+        size_t queue_size = virtq_size();
+        ASSERT(queue_size < 1024 && "too large queue size");
+
+        // Allocate the descriptor area.
+        size_t descs_size = queue_size * sizeof(struct virtq_desc);
+        dma_t descs_dma =
+            dma_alloc(descs_size, DMA_ALLOC_TO_DEVICE | DMA_ALLOC_FROM_DEVICE);
+        memset(dma_buf(descs_dma), 0, descs_size);
+
+        // Allocate the driver area.
+        dma_t driver_dma =
+            dma_alloc(sizeof(struct virtq_event_suppress), DMA_ALLOC_TO_DEVICE);
+        memset(dma_buf(driver_dma), 0, sizeof(struct virtq_event_suppress));
+
+        // Allocate the device area.
+        dma_t device_dma =
+            dma_alloc(sizeof(struct virtq_event_suppress), DMA_ALLOC_TO_DEVICE);
+        memset(dma_buf(device_dma), 0, sizeof(struct virtq_event_suppress));
+
+        virtqs[i].descs_dma = descs_dma;
+        virtqs[i].descs = (struct virtq_desc *) dma_buf(descs_dma);
+    }
 
     // Make the device active.
     write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER_OK);
-
 
 //    driver_init_for_pci(bar0_addr, bar0_len);
 
