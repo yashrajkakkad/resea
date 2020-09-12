@@ -385,8 +385,8 @@ void main(void) {
     uint8_t mac[6];
     driver_read_macaddr((uint8_t *) &mac);
     INFO("initialized the device");
-    INFO("MAC address = %02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2],
-         mac[3], mac[4], mac[5]);
+    INFO("MAC address = %02x:%02x:%02x:%02x:%02x:%02x",
+         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
 
     ASSERT_OK(ipc_serve("net"));
