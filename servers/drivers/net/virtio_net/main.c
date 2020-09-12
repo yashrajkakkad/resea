@@ -78,9 +78,12 @@ struct virtio_pci_common_cfg {
     uint16_t queue_msix_vector;
     uint16_t queue_enable;
     uint16_t queue_notify_off;
-    uint64_t queue_desc;
-    uint64_t queue_driver;
-    uint64_t queue_device;
+    uint32_t queue_desc_lo;
+    uint32_t queue_desc_hi;
+    uint32_t queue_driver_lo;
+    uint32_t queue_driver_hi;
+    uint32_t queue_device_lo;
+    uint32_t queue_device_hi;
 } __packed;
 
 #define VIRTIO_COMMON_CFG_READ(size, field) \
@@ -126,6 +129,22 @@ static void virtq_select(unsigned index) {
 static uint16_t virtq_size(void) {
     return VIRTIO_COMMON_CFG_READ16(queue_size);
 }
+
+static void write_queue_desc(uint64_t paddr) {
+    VIRTIO_COMMON_CFG_WRITE32(queue_desc_lo, paddr & 0xffffffff);
+    VIRTIO_COMMON_CFG_WRITE32(queue_desc_hi, paddr >> 32);
+}
+
+static void write_queue_driver(uint64_t paddr) {
+    VIRTIO_COMMON_CFG_WRITE32(queue_driver_lo, paddr & 0xffffffff);
+    VIRTIO_COMMON_CFG_WRITE32(queue_driver_hi, paddr >> 32);
+}
+
+static void write_queue_device(uint64_t paddr) {
+    VIRTIO_COMMON_CFG_WRITE32(queue_device_lo, paddr & 0xffffffff);
+    VIRTIO_COMMON_CFG_WRITE32(queue_device_hi, paddr >> 32);
+}
+
 
 //
 //  Driver
@@ -297,6 +316,11 @@ void main(void) {
         dma_t device_dma =
             dma_alloc(sizeof(struct virtq_event_suppress), DMA_ALLOC_TO_DEVICE);
         memset(dma_buf(device_dma), 0, sizeof(struct virtq_event_suppress));
+
+        // Register physical addresses.
+        write_queue_desc(dma_daddr(descs_dma));
+        write_queue_driver(dma_daddr(driver_dma));
+        write_queue_device(dma_daddr(device_dma));
 
         virtqs[i].descs_dma = descs_dma;
         virtqs[i].descs = (struct virtq_desc *) dma_buf(descs_dma);
