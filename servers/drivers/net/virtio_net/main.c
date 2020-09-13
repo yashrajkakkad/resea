@@ -134,22 +134,31 @@ struct virtio_pci_common_cfg {
 #define VIRTIO_COMMON_CFG_READ(size, field) \
     io_read ## size(common_cfg_io, common_cfg_off + \
         offsetof(struct virtio_pci_common_cfg, field))
-#define VIRTIO_COMMON_CFG_READ8(field)  VIRTIO_COMMON_CFG_READ(8, field)
-#define VIRTIO_COMMON_CFG_READ16(field) VIRTIO_COMMON_CFG_READ(16, field)
-#define VIRTIO_COMMON_CFG_READ32(field) VIRTIO_COMMON_CFG_READ(32, field)
+#define VIRTIO_COMMON_CFG_READ8(field) \
+    VIRTIO_COMMON_CFG_READ(8, field)
+#define VIRTIO_COMMON_CFG_READ16(field) \
+    VIRTIO_COMMON_CFG_READ(16, field)
+#define VIRTIO_COMMON_CFG_READ32(field) \
+    VIRTIO_COMMON_CFG_READ(32, field)
 
 #define VIRTIO_COMMON_CFG_WRITE(size, field, value) \
     io_write ## size(common_cfg_io, common_cfg_off + \
         offsetof(struct virtio_pci_common_cfg, field), value)
-#define VIRTIO_COMMON_CFG_WRITE8(field, value)  VIRTIO_COMMON_CFG_WRITE(8, field, value)
-#define VIRTIO_COMMON_CFG_WRITE16(field, value) VIRTIO_COMMON_CFG_WRITE(16, field, value)
-#define VIRTIO_COMMON_CFG_WRITE32(field, value) VIRTIO_COMMON_CFG_WRITE(32, field, value)
+#define VIRTIO_COMMON_CFG_WRITE8(field, value) \
+    VIRTIO_COMMON_CFG_WRITE(8, field, value)
+#define VIRTIO_COMMON_CFG_WRITE16(field, value) \
+    VIRTIO_COMMON_CFG_WRITE(16, field, value)
+#define VIRTIO_COMMON_CFG_WRITE32(field, value) \
+    VIRTIO_COMMON_CFG_WRITE(32, field, value)
 
 #define VIRTIO_DEVICE_CFG_READ(size, struct_name, field) \
     io_read ## size(device_cfg_io, device_cfg_off + offsetof(struct_name, field))
-#define VIRTIO_DEVICE_CFG_READ8(struct_name, field)  VIRTIO_DEVICE_CFG_READ(8, struct_name, field)
-#define VIRTIO_DEVICE_CFG_READ16(struct_name, field) VIRTIO_DEVICE_CFG_READ(16, struct_name, field)
-#define VIRTIO_DEVICE_CFG_READ32(struct_name, field) VIRTIO_DEVICE_CFG_READ(32, struct_name, field)
+#define VIRTIO_DEVICE_CFG_READ8(struct_name, field) \
+    VIRTIO_DEVICE_CFG_READ(8, struct_name, field)
+#define VIRTIO_DEVICE_CFG_READ16(struct_name, field) \
+    VIRTIO_DEVICE_CFG_READ(16, struct_name, field)
+#define VIRTIO_DEVICE_CFG_READ32(struct_name, field) \
+    VIRTIO_DEVICE_CFG_READ(32, struct_name, field)
 
 static uint8_t read_device_status(void) {
     return VIRTIO_COMMON_CFG_READ8(device_status);
