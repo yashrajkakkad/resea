@@ -224,10 +224,13 @@ void driver_transmit(const uint8_t *payload, size_t len) {
 
     struct virtio_net_buffer *buffers =
         (struct virtio_net_buffer *) tx_virtq->buffers;
+    volatile struct virtq_desc *desc = &tx_virtq->descs[tx_next];
     volatile struct virtio_net_buffer *buf = &buffers[tx_next];
     ASSERT(len <= sizeof(buf->payload));
 
-    buf->header.flags = VIRTQ_DESC_F_AVAIL;
+    desc->flags = VIRTQ_DESC_F_AVAIL;
+    desc->len = sizeof(struct virtio_net_header) + len;
+    buf->header.flags = 0;
     buf->header.gso_type = VIRTIO_NET_HDR_GSO_NONE;
     buf->header.gso_size = 0;
     buf->header.checksum_start = 0;
