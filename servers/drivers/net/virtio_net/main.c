@@ -109,7 +109,6 @@ struct virtio_virtq {
     void *buffers;
     offset_t queue_notify_off;
     int next_avail;
-    int next_used;
     int wrap_counter;
 };
 
@@ -255,13 +254,26 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
 }
 
 struct virtq_desc *virtq_pop_used(struct virtio_virtq *vq) {
-    struct virtq_desc *desc = &vq->descs[vq->next_used];
+    struct virtq_desc *desc = &vq->descs[vq->next_avail];
     if (!virtq_is_desc_used(vq, desc)) {
         return NULL;
     }
 
-    vq->next_used = (vq->next_used + 1) % vq->num_descs;
+    vq->next_avail = (vq->next_avail + 1) % vq->num_descs;
+    if (vq->next_avail == vq->num_descs - 1) {
+        vq->wrap_counter ^= 1;
+        vq->next_avail = 0;
+    } else {
+        vq->next_avail++;
+    }
+
     return desc;
+}
+
+struct virtq_desc *virtq_free_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
+    desc->flags =
+        (vq->wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
+        | (!vq->wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
 }
 
 //
@@ -314,6 +326,7 @@ void driver_handle_interrupt(void) {
     while ((desc = virtq_pop_used(rx_virtq)) != NULL) {
         volatile struct virtio_net_buffer *buf = &buffers[desc->id];
         receive((const void *) buf->payload, desc->len - sizeof(buf->header));
+        virtq_free_used(rx_virtq, desc);
     }
 }
 
@@ -501,7 +514,6 @@ void main(void) {
         virtqs[i].num_descs = num_descs;
         virtqs[i].queue_notify_off = queue_notify_off;
         virtqs[i].next_avail = 0;
-        virtqs[i].next_used = 0;
         virtqs[i].wrap_counter = 1;
     }
 
