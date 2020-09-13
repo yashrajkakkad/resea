@@ -80,6 +80,8 @@ struct virtio_net_buffer {
 #define VIRTQ_DESC_F_USED_SHIFT   15
 #define VIRTQ_DESC_F_AVAIL        (1 << VIRTQ_DESC_F_AVAIL_SHIFT)
 #define VIRTQ_DESC_F_USED         (1 << VIRTQ_DESC_F_USED_SHIFT)
+#define VIRTQ_DESC_F_WRITE        2
+
 struct virtq_desc {
     /// The physical buffer address.
     uint64_t addr;
@@ -270,7 +272,7 @@ struct virtq_desc *virtq_pop_used(struct virtio_virtq *vq) {
     return desc;
 }
 
-struct virtq_desc *virtq_free_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
+void virtq_free_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
     desc->flags =
         (vq->wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
         | (!vq->wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
@@ -324,6 +326,7 @@ void driver_handle_interrupt(void) {
         (struct virtio_net_buffer *) rx_virtq->buffers;
     struct virtq_desc *desc;
     while ((desc = virtq_pop_used(rx_virtq)) != NULL) {
+        DBG("receving...");
         volatile struct virtio_net_buffer *buf = &buffers[desc->id];
         receive((const void *) buf->payload, desc->len - sizeof(buf->header));
         virtq_free_used(rx_virtq, desc);
@@ -527,7 +530,14 @@ void main(void) {
     rx_virtq->buffers_dma = rx_dma;
     rx_virtq->buffers = dma_buf(rx_dma);
     for (int i = 0; i < rx_virtq->num_descs; i++) {
+        rx_virtq->descs[i].id = i;
         rx_virtq->descs[i].addr = dma_daddr(rx_dma) + (buffer_size * i);
+        rx_virtq->descs[i].len = buffer_size;
+        rx_virtq->descs[i].flags |= VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE;
+
+        struct virtio_net_buffer *buf =
+            &((struct virtio_net_buffer *) rx_virtq->buffers)[i];
+        buf->header.num_buffers = 1;
     }
 
     // Allocate TX buffers.
