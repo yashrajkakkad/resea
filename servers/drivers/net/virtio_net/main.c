@@ -5,6 +5,7 @@
 #include <driver/irq.h>
 #include <driver/io.h>
 #include <driver/dma.h>
+#include <virtio/virtio.h>
 #include <string.h>
 
 //
@@ -21,29 +22,6 @@ struct net_driver_ops {
 //
 //  Virtio-net
 //
-static io_t common_cfg_io;
-static offset_t common_cfg_off;
-static io_t device_cfg_io;
-static offset_t device_cfg_off;
-static io_t notify_struct_io;
-static offset_t notify_cap_off;
-static offset_t notify_off_multiplier;
-static io_t isr_struct_io;
-static offset_t isr_cap_off;
-
-#define VIRTIO_PCI_CAP_COMMON_CFG  1
-#define VIRTIO_PCI_CAP_NOTIFY_CFG  2
-#define VIRTIO_PCI_CAP_ISR_CFG     3
-#define VIRTIO_PCI_CAP_DEVICE_CFG  4
-
-// "2.1 Device Status Field"
-#define VIRTIO_STATUS_ACK        1
-#define VIRTIO_STATUS_DRIVER     2
-#define VIRTIO_STATUS_DRIVER_OK  4
-#define VIRTIO_STATUS_FEAT_OK    82
-
-#define VIRTIO_F_VERSION_1       (1ull << 32)
-#define VIRTIO_F_RING_PACKED     (1ull << 34)
 
 #define VIRTIO_NET_F_MAC         (1 << 5)
 #define VIRTIO_NET_F_STATUS      (1 << 16)
@@ -62,7 +40,6 @@ struct virtio_net_config {
     uint16_t mtu;
 } __packed;
 
-
 #define VIRTIO_NET_HDR_GSO_NONE 0
 struct virtio_net_header {
     uint8_t flags;
@@ -79,23 +56,6 @@ struct virtio_net_buffer {
     uint8_t payload[PAGE_SIZE - sizeof(struct virtio_net_header)];
 } __packed;
 
-#define VIRTQ_DESC_F_AVAIL_SHIFT  7
-#define VIRTQ_DESC_F_USED_SHIFT   15
-#define VIRTQ_DESC_F_AVAIL        (1 << VIRTQ_DESC_F_AVAIL_SHIFT)
-#define VIRTQ_DESC_F_USED         (1 << VIRTQ_DESC_F_USED_SHIFT)
-#define VIRTQ_DESC_F_WRITE        2
-
-struct virtq_desc {
-    /// The physical buffer address.
-    uint64_t addr;
-    /// The buffer Length.
-    uint32_t len;
-    /// The buffer ID.
-    uint16_t id;
-    /// Flags.
-    uint16_t flags;
-} __packed;
-
 struct virtq_event_suppress {
     uint16_t desc;
     uint16_t flags;
@@ -103,201 +63,6 @@ struct virtq_event_suppress {
 
 /// The maximum number of virtqueues.
 #define NUM_VIRTQS_MAX 8
-
-/// A virtqueue.
-struct virtio_virtq {
-    /// The virtqueue index.
-    unsigned index;
-    /// Descriptors.
-    dma_t descs_dma;
-    struct virtq_desc *descs;
-    /// The number of descriptors.
-    int num_descs;
-    /// Static buffers referenced from descriptors.
-    dma_t buffers_dma;
-    void *buffers;
-    /// The queue notify offset for the queue.
-    offset_t queue_notify_off;
-    /// The next descriptor index to be allocated.
-    int next_avail;
-    /// The next descriptor index to be used by the device.
-    int next_used;
-    /// Driver-side wrapping counter.
-    int avail_wrap_counter;
-    /// Device-side wrapping counter.
-    int used_wrap_counter;
-};
-
-struct virtio_pci_common_cfg {
-    uint32_t device_feature_select;
-    uint32_t device_feature;
-    uint32_t driver_feature_select;
-    uint32_t driver_feature;
-    uint16_t msix_config;
-    uint16_t num_queues;
-    uint8_t device_status;
-    uint8_t config_generation;
-    uint16_t queue_select;
-    uint16_t queue_size;
-    uint16_t queue_msix_vector;
-    uint16_t queue_enable;
-    uint16_t queue_notify_off;
-    uint32_t queue_desc_lo;
-    uint32_t queue_desc_hi;
-    uint32_t queue_driver_lo;
-    uint32_t queue_driver_hi;
-    uint32_t queue_device_lo;
-    uint32_t queue_device_hi;
-} __packed;
-
-#define VIRTIO_COMMON_CFG_READ(size, field) \
-    io_read ## size(common_cfg_io, common_cfg_off + \
-        offsetof(struct virtio_pci_common_cfg, field))
-#define VIRTIO_COMMON_CFG_READ8(field) \
-    VIRTIO_COMMON_CFG_READ(8, field)
-#define VIRTIO_COMMON_CFG_READ16(field) \
-    VIRTIO_COMMON_CFG_READ(16, field)
-#define VIRTIO_COMMON_CFG_READ32(field) \
-    VIRTIO_COMMON_CFG_READ(32, field)
-
-#define VIRTIO_COMMON_CFG_WRITE(size, field, value) \
-    io_write ## size(common_cfg_io, common_cfg_off + \
-        offsetof(struct virtio_pci_common_cfg, field), value)
-#define VIRTIO_COMMON_CFG_WRITE8(field, value) \
-    VIRTIO_COMMON_CFG_WRITE(8, field, value)
-#define VIRTIO_COMMON_CFG_WRITE16(field, value) \
-    VIRTIO_COMMON_CFG_WRITE(16, field, value)
-#define VIRTIO_COMMON_CFG_WRITE32(field, value) \
-    VIRTIO_COMMON_CFG_WRITE(32, field, value)
-
-#define VIRTIO_DEVICE_CFG_READ(size, struct_name, field) \
-    io_read ## size(device_cfg_io, device_cfg_off + offsetof(struct_name, field))
-#define VIRTIO_DEVICE_CFG_READ8(struct_name, field) \
-    VIRTIO_DEVICE_CFG_READ(8, struct_name, field)
-#define VIRTIO_DEVICE_CFG_READ16(struct_name, field) \
-    VIRTIO_DEVICE_CFG_READ(16, struct_name, field)
-#define VIRTIO_DEVICE_CFG_READ32(struct_name, field) \
-    VIRTIO_DEVICE_CFG_READ(32, struct_name, field)
-
-static uint8_t read_device_status(void) {
-    return VIRTIO_COMMON_CFG_READ8(device_status);
-}
-
-static void write_device_status(uint8_t value) {
-    VIRTIO_COMMON_CFG_WRITE8(device_status, value);
-}
-
-static void write_driver_feature(uint64_t value) {
-    // Select and set feature bits 0 to 31.
-    VIRTIO_COMMON_CFG_WRITE32(driver_feature_select, 0);
-    VIRTIO_COMMON_CFG_WRITE32(driver_feature, value & 0xffffffff);
-
-    // Select and set feature bits 32 to 63.
-    VIRTIO_COMMON_CFG_WRITE32(driver_feature_select, 1);
-    VIRTIO_COMMON_CFG_WRITE32(driver_feature, value >> 32);
-}
-
-static uint16_t read_num_virtq(void) {
-    return VIRTIO_COMMON_CFG_READ16(num_queues);
-}
-
-static void virtq_select(unsigned index) {
-    VIRTIO_COMMON_CFG_WRITE8(queue_select, index);
-}
-
-static uint16_t virtq_size(void) {
-    VIRTIO_COMMON_CFG_WRITE16(queue_size, 4); // FIXME:
-    return VIRTIO_COMMON_CFG_READ16(queue_size);
-}
-
-static void virtq_enable(void) {
-    VIRTIO_COMMON_CFG_WRITE16(queue_enable, 1);
-}
-
-static void virtq_set_desc_paddr(uint64_t paddr) {
-    VIRTIO_COMMON_CFG_WRITE32(queue_desc_lo, paddr & 0xffffffff);
-    VIRTIO_COMMON_CFG_WRITE32(queue_desc_hi, paddr >> 32);
-}
-
-static void virtq_set_driver_paddr(uint64_t paddr) {
-    VIRTIO_COMMON_CFG_WRITE32(queue_driver_lo, paddr & 0xffffffff);
-    VIRTIO_COMMON_CFG_WRITE32(queue_driver_hi, paddr >> 32);
-}
-
-static void virtq_set_device_paddr(uint64_t paddr) {
-    VIRTIO_COMMON_CFG_WRITE32(queue_device_lo, paddr & 0xffffffff);
-    VIRTIO_COMMON_CFG_WRITE32(queue_device_hi, paddr >> 32);
-}
-
-static void virtq_notify(struct virtio_virtq *vq) {
-    io_write16(notify_struct_io, vq->queue_notify_off, vq->index);
-}
-
-static bool virtq_is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
-    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
-    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
-    return avail == used;
-}
-
-static bool virtq_is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
-    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
-    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
-    return avail == used && used == vq->used_wrap_counter;
-}
-
-static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
-    int index = vq->next_avail;
-    struct virtq_desc *desc = &vq->descs[index];
-
-    if (!virtq_is_desc_free(vq, desc)) {
-        // The desciptor is not free.
-        return -1;
-    }
-
-    desc->flags =
-        (vq->avail_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
-        | (!vq->avail_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
-    desc->len = len;
-    desc->id = index;
-
-    vq->next_avail++;
-    if (vq->next_avail == vq->num_descs) {
-        vq->avail_wrap_counter ^= 1;
-        vq->next_avail = 0;
-    }
-
-    return index;
-}
-
-struct virtq_desc *virtq_pop_used(struct virtio_virtq *vq) {
-    struct virtq_desc *desc = &vq->descs[vq->next_used];
-    INFO("pop index = %d: flags=%x, wrap=%d [%s]", vq->next_used, desc->flags, vq->used_wrap_counter,
-        !virtq_is_desc_used(vq, desc) ? "empty" : "full");
-    if (!virtq_is_desc_used(vq, desc)) {
-        return NULL;
-    }
-
-    DBG("pop index = %d: max=%d, %d", vq->next_used, vq->num_descs, vq->next_used == vq->num_descs - 1);
-    return desc;
-}
-
-void virtq_free_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
-    desc->flags =
-        (!vq->used_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
-        | (vq->used_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
-
-    vq->next_used++;
-    if (vq->next_used == vq->num_descs) {
-        vq->used_wrap_counter ^= 1;
-        vq->next_used = 0;
-    }
-}
-
-/// Reads the ISR status and de-assert an interrupt
-/// ("4.1.4.5 ISR status capability").
-static uint8_t read_isr_status(void) {
-    return io_read8(isr_struct_io, isr_cap_off);
-}
 
 //
 //  Driver

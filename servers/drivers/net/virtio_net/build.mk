@@ -1,3 +1,3 @@
 name := virtio_net
 objs-y := main.o
-libs-y := driver
+libs-y := virtio driver

@@ -16,7 +16,6 @@ QEMUFLAGS += -object filter-dump,id=fiter0,netdev=net0,file=e1000.pcap
 QEMUFLAGS += -object filter-dump,id=fiter1,netdev=net1,file=virtio.pcap
 QEMUFLAGS += $(if $(SMP), -smp $(SMP))
 QEMUFLAGS += $(if $(GUI),,-nographic)
-QEMUFLAGS += -trace events=qemu-trace.tmp
 
 .PHONY: run
 run: $(kernel_image)
