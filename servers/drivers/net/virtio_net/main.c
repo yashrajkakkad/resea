@@ -76,8 +76,10 @@ struct virtio_net_buffer {
     uint8_t payload[PAGE_SIZE - sizeof(struct virtio_net_header)];
 } __packed;
 
-#define VIRTQ_DESC_F_AVAIL     (1 << 7)
-#define VIRTQ_DESC_F_USED      (1 << 15)
+#define VIRTQ_DESC_F_AVAIL_SHIFT  7
+#define VIRTQ_DESC_F_USED_SHIFT   15
+#define VIRTQ_DESC_F_AVAIL        (1 << VIRTQ_DESC_F_AVAIL_SHIFT)
+#define VIRTQ_DESC_F_USED         (1 << VIRTQ_DESC_F_USED_SHIFT)
 struct virtq_desc {
     /// The physical buffer address.
     uint64_t addr;
@@ -107,6 +109,7 @@ struct virtio_virtq {
     volatile void *buffers;
     offset_t queue_notify_off;
     int next_avail;
+    int wrap_counter;
 };
 
 struct virtio_pci_common_cfg {
@@ -216,10 +219,23 @@ static void virtq_notify(struct virtio_virtq *vq) {
 static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     int index = vq->next_avail;
     volatile struct virtq_desc *desc = &vq->descs[index];
-    desc->flags = VIRTQ_DESC_F_AVAIL;
+
+    if (!!(desc->flags & VIRTQ_DESC_F_AVAIL) != !!(desc->flags & VIRTQ_DESC_F_USED)) {
+        return -1;
+    }
+
+    desc->flags =
+        (vq->wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
+        | (!vq->wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
     desc->len = len;
 
-    vq->next_avail = (vq->next_avail + 1) % vq->num_descs;
+    if (vq->next_avail == vq->num_descs - 1) {
+        vq->wrap_counter ^= 1;
+        vq->next_avail = 0;
+    } else {
+        vq->next_avail++;
+    }
+
     return index;
 }
 
@@ -453,6 +469,7 @@ void main(void) {
         virtqs[i].num_descs = num_descs;
         virtqs[i].queue_notify_off = queue_notify_off;
         virtqs[i].next_avail = 0;
+        virtqs[i].wrap_counter = 1;
     }
 
     // Allocate RX buffers.
