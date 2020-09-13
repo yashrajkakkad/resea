@@ -106,6 +106,7 @@ struct virtio_virtq {
     dma_t buffers_dma;
     volatile void *buffers;
     offset_t queue_notify_off;
+    unsigned next_avail;
 };
 
 struct virtio_pci_common_cfg {
@@ -203,6 +204,16 @@ static void virtq_notify(struct virtio_virtq *vq) {
     io_write16(notify_struct_io, vq->queue_notify_off, vq->index);
 }
 
+static unsigned virtq_alloc(struct virtio_virtq *vq, size_t len) {
+    unsigned index = vq->next_avail;
+    volatile struct virtq_desc *desc = &vq->descs[index];
+    desc->flags = VIRTQ_DESC_F_AVAIL;
+    desc->len = len;
+
+    vq->next_avail = (vq->next_avail + 1) % vq->num_descs;
+    return index;
+}
+
 //
 //  Driver
 //
@@ -220,16 +231,16 @@ static struct virtio_virtq *tx_virtq = NULL;
 static struct virtio_virtq *rx_virtq = NULL;
 
 void driver_transmit(const uint8_t *payload, size_t len) {
-    static unsigned tx_next = 0;
-
+    unsigned index =
+        virtq_alloc(tx_virtq, sizeof(struct virtio_net_header) + len);
     struct virtio_net_buffer *buffers =
         (struct virtio_net_buffer *) tx_virtq->buffers;
-    volatile struct virtq_desc *desc = &tx_virtq->descs[tx_next];
-    volatile struct virtio_net_buffer *buf = &buffers[tx_next];
-    ASSERT(len <= sizeof(buf->payload));
+    volatile struct virtio_net_buffer *buf = &buffers[index];
+    if (!buf) {
+        return;
+    }
 
-    desc->flags = VIRTQ_DESC_F_AVAIL;
-    desc->len = sizeof(struct virtio_net_header) + len;
+    ASSERT(len <= sizeof(buf->payload));
     buf->header.flags = 0;
     buf->header.gso_type = VIRTIO_NET_HDR_GSO_NONE;
     buf->header.gso_size = 0;
@@ -238,10 +249,7 @@ void driver_transmit(const uint8_t *payload, size_t len) {
     buf->header.num_buffers = 0;
     memcpy((uint8_t *) &buf->payload, payload, len);
 
-//    DBG("tx_virtq->index = %d (%p, off=%p)", tx_virtq->index, notify_struct_io->memory.paddr,
-//        notify_queue_off);
     virtq_notify(tx_virtq);
-    tx_next = (tx_next + 1) % tx_virtq->num_descs;
 }
 
 void driver_handle_interrupt(void) {
@@ -431,6 +439,7 @@ void main(void) {
         virtqs[i].descs = (struct virtq_desc *) dma_buf(descs_dma);
         virtqs[i].num_descs = num_descs;
         virtqs[i].queue_notify_off = queue_notify_off;
+        virtqs[i].next_avail = 0;
     }
 
     // Allocate RX buffers.
