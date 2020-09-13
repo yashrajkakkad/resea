@@ -289,7 +289,7 @@ void driver_transmit(const uint8_t *payload, size_t len) {
 }
 
 void driver_handle_interrupt(void) {
-    INFO("Handle IRQ");
+    DBG("Handle IRQ");
 }
 
 error_t driver_init_for_pci(receive_callback_t receive) {
@@ -503,6 +503,10 @@ void main(void) {
     for (int i = 0; i < tx_virtq->num_descs; i++) {
         tx_virtq->descs[i].addr = dma_daddr(tx_dma) + (buffer_size * i);
     }
+
+    // Start listening for interrupts.
+    uint8_t irq = pci_config_read(pci_device, 0x3c, sizeof(uint8_t));
+    ASSERT_OK(irq_acquire(irq));
 
     // Make the device active.
     DBG("device active");
