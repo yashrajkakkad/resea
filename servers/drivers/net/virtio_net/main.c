@@ -106,7 +106,7 @@ struct virtio_virtq {
     dma_t buffers_dma;
     volatile void *buffers;
     offset_t queue_notify_off;
-    unsigned next_avail;
+    int next_avail;
 };
 
 struct virtio_pci_common_cfg {
@@ -204,8 +204,8 @@ static void virtq_notify(struct virtio_virtq *vq) {
     io_write16(notify_struct_io, vq->queue_notify_off, vq->index);
 }
 
-static unsigned virtq_alloc(struct virtio_virtq *vq, size_t len) {
-    unsigned index = vq->next_avail;
+static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
+    int index = vq->next_avail;
     volatile struct virtq_desc *desc = &vq->descs[index];
     desc->flags = VIRTQ_DESC_F_AVAIL;
     desc->len = len;
@@ -231,8 +231,12 @@ static struct virtio_virtq *tx_virtq = NULL;
 static struct virtio_virtq *rx_virtq = NULL;
 
 void driver_transmit(const uint8_t *payload, size_t len) {
-    unsigned index =
+    int index =
         virtq_alloc(tx_virtq, sizeof(struct virtio_net_header) + len);
+    if (index < 0) {
+        return;
+    }
+
     struct virtio_net_buffer *buffers =
         (struct virtio_net_buffer *) tx_virtq->buffers;
     volatile struct virtio_net_buffer *buf = &buffers[index];
