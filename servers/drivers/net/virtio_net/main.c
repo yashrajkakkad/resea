@@ -103,10 +103,10 @@ struct virtq_event_suppress {
 struct virtio_virtq {
     unsigned index;
     dma_t descs_dma;
-    volatile struct virtq_desc *descs;
+    struct virtq_desc *descs;
     int num_descs;
     dma_t buffers_dma;
-    volatile void *buffers;
+    void *buffers;
     offset_t queue_notify_off;
     int next_avail;
     int wrap_counter;
@@ -216,11 +216,17 @@ static void virtq_notify(struct virtio_virtq *vq) {
     io_write16(notify_struct_io, vq->queue_notify_off, vq->index);
 }
 
+static bool virtq_is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
+    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
+    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
+    return avail == used;
+}
+
 static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     int index = vq->next_avail;
-    volatile struct virtq_desc *desc = &vq->descs[index];
+    struct virtq_desc *desc = &vq->descs[index];
 
-    if (!!(desc->flags & VIRTQ_DESC_F_AVAIL) != !!(desc->flags & VIRTQ_DESC_F_USED)) {
+    if (!virtq_is_desc_free(vq, desc)) {
         // The desciptor is not free.
         return -1;
     }
