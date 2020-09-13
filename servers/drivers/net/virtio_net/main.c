@@ -106,15 +106,26 @@ struct virtq_event_suppress {
 
 /// A virtqueue.
 struct virtio_virtq {
+    /// The virtqueue index.
     unsigned index;
+    /// Descriptors.
     dma_t descs_dma;
     struct virtq_desc *descs;
+    /// The number of descriptors.
     int num_descs;
+    /// Static buffers referenced from descriptors.
     dma_t buffers_dma;
     void *buffers;
+    /// The queue notify offset for the queue.
     offset_t queue_notify_off;
+    /// The next descriptor index to be allocated.
     int next_avail;
-    int wrap_counter;
+    /// The next descriptor index to be used by the device.
+    int next_used;
+    /// Driver-side wrapping counter.
+    int avail_wrap_counter;
+    /// Device-side wrapping counter.
+    int used_wrap_counter;
 };
 
 struct virtio_pci_common_cfg {
@@ -195,6 +206,7 @@ static void virtq_select(unsigned index) {
 }
 
 static uint16_t virtq_size(void) {
+    VIRTIO_COMMON_CFG_WRITE16(queue_size, 4); // FIXME:
     return VIRTIO_COMMON_CFG_READ16(queue_size);
 }
 
@@ -230,7 +242,7 @@ static bool virtq_is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc)
 static bool virtq_is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
     int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
     int used = !!(desc->flags & VIRTQ_DESC_F_USED);
-    return avail == used && avail == vq->wrap_counter;
+    return avail == used && used == vq->used_wrap_counter;
 }
 
 static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
@@ -243,41 +255,42 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     }
 
     desc->flags =
-        (vq->wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
-        | (!vq->wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
+        (vq->avail_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
+        | (!vq->avail_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
     desc->len = len;
     desc->id = index;
 
-    if (vq->next_avail == vq->num_descs - 1) {
-        vq->wrap_counter ^= 1;
+    vq->next_avail++;
+    if (vq->next_avail == vq->num_descs) {
+        vq->avail_wrap_counter ^= 1;
         vq->next_avail = 0;
-    } else {
-        vq->next_avail++;
     }
 
     return index;
 }
 
 struct virtq_desc *virtq_pop_used(struct virtio_virtq *vq) {
-    struct virtq_desc *desc = &vq->descs[vq->next_avail];
+    struct virtq_desc *desc = &vq->descs[vq->next_used];
+    INFO("pop index = %d: flags=%x, wrap=%d [%s]", vq->next_used, desc->flags, vq->used_wrap_counter,
+        !virtq_is_desc_used(vq, desc) ? "empty" : "full");
     if (!virtq_is_desc_used(vq, desc)) {
         return NULL;
     }
 
-    if (vq->next_avail == vq->num_descs - 1) {
-        vq->wrap_counter ^= 1;
-        vq->next_avail = 0;
-    } else {
-        vq->next_avail++;
-    }
-
+    DBG("pop index = %d: max=%d, %d", vq->next_used, vq->num_descs, vq->next_used == vq->num_descs - 1);
     return desc;
 }
 
 void virtq_free_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
     desc->flags =
-        (vq->wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
-        | (!vq->wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
+        (!vq->used_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
+        | (vq->used_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
+
+    vq->next_used++;
+    if (vq->next_used == vq->num_descs) {
+        vq->used_wrap_counter ^= 1;
+        vq->next_used = 0;
+    }
 }
 
 /// Reads the ISR status and de-assert an interrupt
@@ -334,13 +347,20 @@ void driver_handle_interrupt(void) {
         (struct virtio_net_buffer *) rx_virtq->buffers;
 
     uint8_t status = read_isr_status();
-    DBG("IRQ status=%x", status);
-    struct virtq_desc *desc;
-    while ((desc = virtq_pop_used(rx_virtq)) != NULL) {
-        DBG("receving...");
-        volatile struct virtio_net_buffer *buf = &buffers[desc->id];
-        receive((const void *) buf->payload, desc->len - sizeof(buf->header));
-        virtq_free_used(rx_virtq, desc);
+    TRACE("IRQ status=%x ------------------------------------------------", status);
+    if (status & 1) {
+        struct virtq_desc *desc;
+        while ((desc = virtq_pop_used(rx_virtq)) != NULL) {
+            volatile struct virtio_net_buffer *buf = &buffers[desc->id];
+            receive((const void *) buf->payload, desc->len - sizeof(buf->header));
+            buf->header.num_buffers = 1;
+            virtq_free_used(rx_virtq, desc);
+            desc->flags |= VIRTQ_DESC_F_WRITE;
+            desc->len = sizeof(struct virtio_net_buffer);
+            DBG("freeing #%d (f=%x, used_c=%d)", desc->id, desc->flags, rx_virtq->used_wrap_counter);
+        }
+
+        virtq_notify(rx_virtq);
     }
 }
 
@@ -546,7 +566,9 @@ void main(void) {
         virtqs[i].num_descs = num_descs;
         virtqs[i].queue_notify_off = queue_notify_off;
         virtqs[i].next_avail = 0;
-        virtqs[i].wrap_counter = 1;
+        virtqs[i].next_used = 0;
+        virtqs[i].avail_wrap_counter = 1;
+        virtqs[i].used_wrap_counter = 1;
     }
 
     // Allocate RX buffers.
