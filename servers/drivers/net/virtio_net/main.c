@@ -104,7 +104,7 @@ struct virtio_virtq {
     unsigned index;
     dma_t descs_dma;
     volatile struct virtq_desc *descs;
-    size_t num_descs;
+    int num_descs;
     dma_t buffers_dma;
     volatile void *buffers;
     offset_t queue_notify_off;
@@ -221,6 +221,7 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     volatile struct virtq_desc *desc = &vq->descs[index];
 
     if (!!(desc->flags & VIRTQ_DESC_F_AVAIL) != !!(desc->flags & VIRTQ_DESC_F_USED)) {
+        // The desciptor is not free.
         return -1;
     }
 
@@ -481,7 +482,7 @@ void main(void) {
     );
     rx_virtq->buffers_dma = rx_dma;
     rx_virtq->buffers = dma_buf(rx_dma);
-    for (size_t i = 0; i < rx_virtq->num_descs; i++) {
+    for (int i = 0; i < rx_virtq->num_descs; i++) {
         rx_virtq->descs[i].addr = dma_daddr(rx_dma) + (buffer_size * i);
     }
 
@@ -493,7 +494,7 @@ void main(void) {
     );
     tx_virtq->buffers_dma = tx_dma;
     tx_virtq->buffers = dma_buf(tx_dma);
-    for (size_t i = 0; i < tx_virtq->num_descs; i++) {
+    for (int i = 0; i < tx_virtq->num_descs; i++) {
         tx_virtq->descs[i].addr = dma_daddr(tx_dma) + (buffer_size * i);
     }
 
