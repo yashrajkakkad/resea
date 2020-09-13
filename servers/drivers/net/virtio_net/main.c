@@ -28,9 +28,12 @@ static offset_t device_cfg_off;
 static io_t notify_struct_io;
 static offset_t notify_cap_off;
 static offset_t notify_off_multiplier;
+static io_t isr_struct_io;
+static offset_t isr_cap_off;
 
 #define VIRTIO_PCI_CAP_COMMON_CFG  1
 #define VIRTIO_PCI_CAP_NOTIFY_CFG  2
+#define VIRTIO_PCI_CAP_ISR_CFG     3
 #define VIRTIO_PCI_CAP_DEVICE_CFG  4
 
 // "2.1 Device Status Field"
@@ -261,7 +264,6 @@ struct virtq_desc *virtq_pop_used(struct virtio_virtq *vq) {
         return NULL;
     }
 
-    vq->next_avail = (vq->next_avail + 1) % vq->num_descs;
     if (vq->next_avail == vq->num_descs - 1) {
         vq->wrap_counter ^= 1;
         vq->next_avail = 0;
@@ -276,6 +278,12 @@ void virtq_free_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
     desc->flags =
         (vq->wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
         | (!vq->wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
+}
+
+/// Reads the ISR status and de-assert an interrupt
+/// ("4.1.4.5 ISR status capability").
+static uint8_t read_isr_status(void) {
+    return io_read8(isr_struct_io, isr_cap_off);
 }
 
 //
@@ -324,6 +332,9 @@ static void receive(const void *payload, size_t len);
 void driver_handle_interrupt(void) {
     struct virtio_net_buffer *buffers =
         (struct virtio_net_buffer *) rx_virtq->buffers;
+
+    uint8_t status = read_isr_status();
+    DBG("IRQ status=%x", status);
     struct virtq_desc *desc;
     while ((desc = virtq_pop_used(rx_virtq)) != NULL) {
         DBG("receving...");
@@ -456,6 +467,24 @@ void main(void) {
             notify_struct_io = io_alloc_memory_fixed(
                 bar_base,
                 ALIGN_UP(notify_cap_off + size, PAGE_SIZE),
+                IO_ALLOC_CONTINUOUS
+            );
+        }
+
+        if (cap_id == 9 && cfg_type == VIRTIO_PCI_CAP_ISR_CFG) {
+            // Notification structure:
+            //
+            // struct virtio_isr_cap {
+            //     u8 isr_status;
+            // };
+            isr_cap_off = pci_config_read(pci_device, cap_off + 8, 4);
+            uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
+            ASSERT((bar & 1) == 0 && "only supports memory-mapped I/O access for now");
+            uint32_t bar_base = bar & ~0xf;
+            size_t size = pci_config_read(pci_device, cap_off + 12, 4);
+            isr_struct_io = io_alloc_memory_fixed(
+                bar_base,
+                ALIGN_UP(isr_cap_off + size, PAGE_SIZE),
                 IO_ALLOC_CONTINUOUS
             );
         }
