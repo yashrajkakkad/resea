@@ -109,6 +109,7 @@ struct virtio_virtq {
     void *buffers;
     offset_t queue_notify_off;
     int next_avail;
+    int next_used;
     int wrap_counter;
 };
 
@@ -222,6 +223,12 @@ static bool virtq_is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc)
     return avail == used;
 }
 
+static bool virtq_is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
+    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
+    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
+    return avail == used && avail == vq->wrap_counter;
+}
+
 static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     int index = vq->next_avail;
     struct virtq_desc *desc = &vq->descs[index];
@@ -235,6 +242,7 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
         (vq->wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
         | (!vq->wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
     desc->len = len;
+    desc->id = index;
 
     if (vq->next_avail == vq->num_descs - 1) {
         vq->wrap_counter ^= 1;
@@ -244,6 +252,16 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     }
 
     return index;
+}
+
+struct virtq_desc *virtq_pop_used(struct virtio_virtq *vq) {
+    struct virtq_desc *desc = &vq->descs[vq->next_used];
+    if (!virtq_is_desc_used(vq, desc)) {
+        return NULL;
+    }
+
+    vq->next_used = (vq->next_used + 1) % vq->num_descs;
+    return desc;
 }
 
 //
@@ -288,15 +306,22 @@ void driver_transmit(const uint8_t *payload, size_t len) {
     virtq_notify(tx_virtq);
 }
 
+static void receive(const void *payload, size_t len);
 void driver_handle_interrupt(void) {
-    DBG("Handle IRQ");
+    struct virtio_net_buffer *buffers =
+        (struct virtio_net_buffer *) rx_virtq->buffers;
+    struct virtq_desc *desc;
+    while ((desc = virtq_pop_used(rx_virtq)) != NULL) {
+        volatile struct virtio_net_buffer *buf = &buffers[desc->id];
+        receive((const void *) buf->payload, desc->len - sizeof(buf->header));
+    }
 }
 
 error_t driver_init_for_pci(receive_callback_t receive) {
     return OK;
 }
 
-static struct net_driver_ops ops = {
+struct net_driver_ops ops = {
     .init = driver_init_for_pci,
     .read_macaddr = driver_read_macaddr,
     .transmit = driver_transmit,
@@ -476,6 +501,7 @@ void main(void) {
         virtqs[i].num_descs = num_descs;
         virtqs[i].queue_notify_off = queue_notify_off;
         virtqs[i].next_avail = 0;
+        virtqs[i].next_used = 0;
         virtqs[i].wrap_counter = 1;
     }
 
