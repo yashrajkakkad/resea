@@ -94,17 +94,15 @@ void main(void) {
 
     // Allocate RX buffers.
     rx_virtq = virtq_get(VIRTIO_NET_QUEUE_RX);
-    virtq_populate_buffers(rx_virtq, sizeof(struct virtio_net_buffer));
+    virtq_allocate_buffers(rx_virtq, sizeof(struct virtio_net_buffer), true);
     for (int i = 0; i < rx_virtq->num_descs; i++) {
-        struct virtq_desc *desc = vq_desc(rx_virtq, i);
         struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, i);
-        desc->flags |= VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE;
         buf->header.num_buffers = 1;
     }
 
     // Allocate TX buffers.
     tx_virtq = virtq_get(VIRTIO_NET_QUEUE_TX);
-    virtq_populate_buffers(tx_virtq, sizeof(struct virtio_net_buffer));
+    virtq_allocate_buffers(tx_virtq, sizeof(struct virtio_net_buffer), false);
 
     // Start listening for interrupts.
     ASSERT_OK(irq_acquire(irq));

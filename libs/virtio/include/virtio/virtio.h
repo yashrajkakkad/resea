@@ -157,6 +157,7 @@ void virtq_notify(struct virtio_virtq *vq);
 int virtq_alloc(struct virtio_virtq *vq, size_t len);
 struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq);
 void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc);
-void virtq_populate_buffers(struct virtio_virtq *vq, size_t buffer_size);
+void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
+                            bool writable);
 
 #endif

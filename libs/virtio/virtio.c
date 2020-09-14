@@ -177,7 +177,8 @@ void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc) {
     }
 }
 
-void virtq_populate_buffers(struct virtio_virtq *vq, size_t buffer_size) {
+void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
+                            bool writable) {
     dma_t dma =dma_alloc(buffer_size * vq->num_descs, DMA_ALLOC_FROM_DEVICE);
     vq->buffers_dma = dma;
     vq->buffers = dma_buf(dma);
@@ -187,7 +188,8 @@ void virtq_populate_buffers(struct virtio_virtq *vq, size_t buffer_size) {
         vq->descs[i].id = i;
         vq->descs[i].addr = dma_daddr(dma) + (buffer_size * i);
         vq->descs[i].len = buffer_size;
-        vq->descs[i].flags = 0;
+        vq->descs[i].flags =
+            writable ? (VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE) : 0;
     }
 }
 
