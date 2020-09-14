@@ -84,6 +84,8 @@ static void transmit(void) {
 
 void main(void) {
     TRACE("starting...");
+
+    // Look for and initialize a virtio-net device.
     uint8_t irq;
     ASSERT_OK(virtio_pci_init(VIRTIO_DEVICE_NET, &irq));
     virtio_negotiate_feature(VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS);

@@ -53,37 +53,33 @@ static void set_device_paddr(uint64_t paddr) {
     VIRTIO_COMMON_CFG_WRITE32(queue_device_hi, paddr >> 32);
 }
 
-static uint16_t virtio_num_virtqueues(void) {
+/// Returns the number of virtqueues in the device.
+static uint16_t num_virtqueues(void) {
     return VIRTIO_COMMON_CFG_READ16(num_queues);
 }
 
-static bool virtq_is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
+/// Returns true if the descriptor is available for the output to the device.
+/// XXX: should we count used_wrap_counter and use is_desc_used() instead?
+static bool is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
     int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
     int used = !!(desc->flags & VIRTQ_DESC_F_USED);
     return avail == used;
 }
 
-static bool virtq_is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
+/// Returns true if the descriptor has been used by the device.
+static bool is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
     int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
     int used = !!(desc->flags & VIRTQ_DESC_F_USED);
     return avail == used && used == vq->used_wrap_counter;
 }
 
+/// Selects the current virtqueue in the common config.
 static void virtq_select(unsigned index) {
     VIRTIO_COMMON_CFG_WRITE8(queue_select, index);
 }
 
-void virtio_activate(void) {
-    write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER_OK);
-}
-
-/// Reads the ISR status and de-assert an interrupt
-/// ("4.1.4.5 ISR status capability").
-uint8_t virtio_read_isr_status(void) {
-    return io_read8(isr_struct_io, isr_cap_off);
-}
-
-void virtq_init(unsigned index) {
+/// Initializes a virtqueue.
+static void virtq_init(unsigned index) {
     virtq_select(index);
 
     size_t num_descs = virtq_size();
@@ -125,24 +121,38 @@ void virtq_init(unsigned index) {
     virtqs[index].used_wrap_counter = 1;
 }
 
+void virtio_activate(void) {
+    write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER_OK);
+}
+
+/// Reads the ISR status and de-assert an interrupt
+/// ("4.1.4.5 ISR status capability").
+uint8_t virtio_read_isr_status(void) {
+    return io_read8(isr_struct_io, isr_cap_off);
+}
+
+/// Returns the number of descriptors in total in the queue.
 uint16_t virtq_size(void) {
     return VIRTIO_COMMON_CFG_READ16(queue_size);
 }
 
+/// Returns the `index`-th virtqueue.
 struct virtio_virtq *virtq_get(unsigned index) {
     return &virtqs[index];
 }
 
+/// Notifies the device that the queue contains a descriptor it needs to process.
 void virtq_notify(struct virtio_virtq *vq) {
     io_write16(notify_struct_io, vq->queue_notify_off, vq->index);
 }
 
+/// Allocates a descriptor for the ouput to the device (e.g. TX virtqueue in
+/// virtio-net).
 int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     int index = vq->next_avail;
     struct virtq_desc *desc = &vq->descs[index];
 
-    if (!virtq_is_desc_free(vq, desc)) {
-        // The desciptor is not free.
+    if (!is_desc_free(vq, desc)) {
         return -1;
     }
 
@@ -161,15 +171,19 @@ int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     return index;
 }
 
+/// Returns the next descriptor which is already used by the device. It returns
+/// NULL if no descriptors are used. If the buffer is input from the device,
+/// call `virtq_push_desc` once you've handled the input.
 struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq) {
     struct virtq_desc *desc = &vq->descs[vq->next_used];
-    if (!virtq_is_desc_used(vq, desc)) {
+    if (!is_desc_used(vq, desc)) {
         return NULL;
     }
 
     return desc;
 }
 
+/// Makes the descriptor available for input from the device.
 void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc) {
     desc->len = vq->buffer_size;
     desc->flags =
@@ -184,6 +198,8 @@ void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc) {
     }
 }
 
+/// Allocates queue buffers. If `writable` is true, the buffers are initialized
+/// as input ones from the device (e.g. RX virqueue in virtio-net).
 void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
                             bool writable) {
     dma_t dma =dma_alloc(buffer_size * vq->num_descs, DMA_ALLOC_FROM_DEVICE);
@@ -200,6 +216,7 @@ void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
     }
 }
 
+/// Checks and enables features. It aborts if any of the features is not supported.
 void virtio_negotiate_feature(uint64_t features) {
     features |= VIRTIO_F_VERSION_1 | VIRTIO_F_RING_PACKED;
 
@@ -218,7 +235,7 @@ void virtio_negotiate_feature(uint64_t features) {
     ASSERT((read_device_status() & VIRTIO_STATUS_FEAT_OK) != 0);
 }
 
-uint32_t pci_config_read(handle_t device, unsigned offset, unsigned size) {
+static uint32_t pci_config_read(handle_t device, unsigned offset, unsigned size) {
     struct message m;
     m.type = DM_PCI_READ_CONFIG_MSG;
     m.dm_pci_read_config.handle = device;
@@ -228,6 +245,8 @@ uint32_t pci_config_read(handle_t device, unsigned offset, unsigned size) {
     return m.dm_pci_read_config_reply.value;
 }
 
+/// Looks for and initializes a virtio device with the given device type. It
+/// sets the IRQ vector to `irq` on success.
 error_t virtio_pci_init(int device_type, uint8_t *irq) {
     // Search the PCI bus for a virtio device...
     dm_server = ipc_lookup("dm");
@@ -237,6 +256,8 @@ error_t virtio_pci_init(int device_type, uint8_t *irq) {
     m.dm_attach_pci_device.device_id = 0x1000;
     ASSERT_OK(ipc_call(dm_server, &m));
     handle_t pci_device = m.dm_attach_pci_device_reply.handle;
+
+    // TODO: Determine the device type and compare it with `device_type`.
 
     // Walk capabilities list. A capability consists of the following fields
     // (from "4.1.4 Virtio Structure PCI Capabilities"):
@@ -344,9 +365,10 @@ error_t virtio_pci_init(int device_type, uint8_t *irq) {
     return OK;
 }
 
-/// Initializes virtqueues.
+/// Initializes virtqueues. Note that you should initialize them before filling
+/// buffers.
 void virtio_init_virtqueues(void) {
-    unsigned num_virtq = virtio_num_virtqueues();
+    unsigned num_virtq = num_virtqueues();
     ASSERT(num_virtq < NUM_VIRTQS_MAX);
     for (unsigned i = 0; i < num_virtq; i++) {
         virtq_init(i);
