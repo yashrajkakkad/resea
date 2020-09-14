@@ -4,6 +4,7 @@
 /// The maximum number of virtqueues.
 #define NUM_VIRTQS_MAX 8
 
+static task_t dm_server;
 static struct virtio_virtq virtqs[NUM_VIRTQS_MAX];
 static offset_t notify_off_multiplier;
 io_t common_cfg_io = NULL;
@@ -23,17 +24,31 @@ static void write_device_status(uint8_t value) {
     VIRTIO_COMMON_CFG_WRITE8(device_status, value);
 }
 
-static void virtq_set_desc_paddr(uint64_t paddr) {
+static uint64_t read_device_features(void) {
+    // Select and read feature bits 0 to 31.
+    VIRTIO_COMMON_CFG_WRITE32(device_feature_select, 0);
+    uint32_t feats_lo =
+        VIRTIO_COMMON_CFG_READ32(device_feature);
+
+    // Select and read feature bits 32 to 63.
+    VIRTIO_COMMON_CFG_WRITE32(device_feature_select, 1);
+    uint32_t feats_hi =
+        VIRTIO_COMMON_CFG_READ32(device_feature);
+
+    return (((uint64_t) feats_hi) << 32) | feats_lo;
+}
+
+static void set_desc_paddr(uint64_t paddr) {
     VIRTIO_COMMON_CFG_WRITE32(queue_desc_lo, paddr & 0xffffffff);
     VIRTIO_COMMON_CFG_WRITE32(queue_desc_hi, paddr >> 32);
 }
 
-static void virtq_set_driver_paddr(uint64_t paddr) {
+static void set_driver_paddr(uint64_t paddr) {
     VIRTIO_COMMON_CFG_WRITE32(queue_driver_lo, paddr & 0xffffffff);
     VIRTIO_COMMON_CFG_WRITE32(queue_driver_hi, paddr >> 32);
 }
 
-static void virtq_set_device_paddr(uint64_t paddr) {
+static void set_device_paddr(uint64_t paddr) {
     VIRTIO_COMMON_CFG_WRITE32(queue_device_lo, paddr & 0xffffffff);
     VIRTIO_COMMON_CFG_WRITE32(queue_device_hi, paddr >> 32);
 }
@@ -94,9 +109,9 @@ void virtq_init(unsigned index) {
     memset(dma_buf(device_dma), 0, sizeof(struct virtq_event_suppress));
 
     // Register physical addresses.
-    virtq_set_desc_paddr(dma_daddr(descs_dma));
-    virtq_set_driver_paddr(dma_daddr(driver_dma));
-    virtq_set_device_paddr(dma_daddr(device_dma));
+    set_desc_paddr(dma_daddr(descs_dma));
+    set_driver_paddr(dma_daddr(driver_dma));
+    set_device_paddr(dma_daddr(device_dma));
     VIRTIO_COMMON_CFG_WRITE16(queue_enable, 1);
 
     virtqs[index].index = index;
@@ -111,7 +126,6 @@ void virtq_init(unsigned index) {
 }
 
 uint16_t virtq_size(void) {
-    VIRTIO_COMMON_CFG_WRITE16(queue_size, 4); // FIXME:
     return VIRTIO_COMMON_CFG_READ16(queue_size);
 }
 
@@ -189,6 +203,9 @@ void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
 void virtio_negotiate_feature(uint64_t features) {
     features |= VIRTIO_F_VERSION_1 | VIRTIO_F_RING_PACKED;
 
+    // Abort if the device does not support features we need.
+    ASSERT((read_device_features() & features) == features);
+
     // Select and set feature bits 0 to 31.
     VIRTIO_COMMON_CFG_WRITE32(driver_feature_select, 0);
     VIRTIO_COMMON_CFG_WRITE32(driver_feature, features & 0xffffffff);
@@ -200,22 +217,6 @@ void virtio_negotiate_feature(uint64_t features) {
     write_device_status(read_device_status() | VIRTIO_STATUS_FEAT_OK);
     ASSERT((read_device_status() & VIRTIO_STATUS_FEAT_OK) != 0);
 }
-
-uint64_t virtio_device_features(void) {
-    // Select and read feature bits 0 to 31.
-    VIRTIO_COMMON_CFG_WRITE32(driver_feature_select, 0);
-    uint32_t feats_lo =
-        VIRTIO_COMMON_CFG_READ32(driver_feature);
-
-    // Select and read feature bits 32 to 63.
-    VIRTIO_COMMON_CFG_WRITE32(driver_feature_select, 1);
-    uint32_t feats_hi =
-        VIRTIO_COMMON_CFG_READ32(driver_feature);
-
-    return (((uint64_t) feats_hi) << 32) | feats_lo;
-}
-
-static task_t dm_server;
 
 uint32_t pci_config_read(handle_t device, unsigned offset, unsigned size) {
     struct message m;
