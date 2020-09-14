@@ -1,7 +1,7 @@
 #ifndef __ENDIAN_H__
 #define __ENDIAN_H__
 
-#include "tcpip.h"
+#include <types.h>
 
 static inline uint16_t swap16(uint16_t x) {
     return ((x & 0xff00) >> 8) | ((x & 0x00ff) << 8);
