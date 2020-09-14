@@ -113,34 +113,34 @@ struct virtq_event_suppress {
     uint16_t flags;
 } __packed;
 
-#define VIRTIO_COMMON_CFG_READ(size, field) \
+#define _COMMON_CFG_READ(size, field) \
     io_read ## size(common_cfg_io, common_cfg_off + \
         offsetof(struct virtio_pci_common_cfg, field))
 #define VIRTIO_COMMON_CFG_READ8(field) \
-    VIRTIO_COMMON_CFG_READ(8, field)
+    _COMMON_CFG_READ(8, field)
 #define VIRTIO_COMMON_CFG_READ16(field) \
-    VIRTIO_COMMON_CFG_READ(16, field)
+    from_le16(_COMMON_CFG_READ(16, field))
 #define VIRTIO_COMMON_CFG_READ32(field) \
-    VIRTIO_COMMON_CFG_READ(32, field)
+    from_le32(_COMMON_CFG_READ(32, field))
 
-#define VIRTIO_COMMON_CFG_WRITE(size, field, value) \
+#define _COMMON_CFG_WRITE(size, field, value) \
     io_write ## size(common_cfg_io, common_cfg_off + \
         offsetof(struct virtio_pci_common_cfg, field), value)
 #define VIRTIO_COMMON_CFG_WRITE8(field, value) \
-    VIRTIO_COMMON_CFG_WRITE(8, field, value)
+    _COMMON_CFG_WRITE(8, field, value)
 #define VIRTIO_COMMON_CFG_WRITE16(field, value) \
-    VIRTIO_COMMON_CFG_WRITE(16, field, value)
+    _COMMON_CFG_WRITE(16, field, into_le32(value))
 #define VIRTIO_COMMON_CFG_WRITE32(field, value) \
-    VIRTIO_COMMON_CFG_WRITE(32, field, value)
+    _COMMON_CFG_WRITE(32, field, into_le32(value))
 
-#define VIRTIO_DEVICE_CFG_READ(size, struct_name, field) \
+#define _DEVICE_CFG_READ(size, struct_name, field) \
     io_read ## size(device_cfg_io, device_cfg_off + offsetof(struct_name, field))
 #define VIRTIO_DEVICE_CFG_READ8(struct_name, field) \
-    VIRTIO_DEVICE_CFG_READ(8, struct_name, field)
+    _DEVICE_CFG_READ(8, struct_name, field)
 #define VIRTIO_DEVICE_CFG_READ16(struct_name, field) \
-    VIRTIO_DEVICE_CFG_READ(16, struct_name, field)
+    from_le16(_DEVICE_CFG_READ(16, struct_name, field))
 #define VIRTIO_DEVICE_CFG_READ32(struct_name, field) \
-    VIRTIO_DEVICE_CFG_READ(32, struct_name, field)
+    from_le32(_DEVICE_CFG_READ(32, struct_name, field))
 
 error_t virtio_pci_init(int device_type, uint8_t *irq);
 uint64_t virtio_device_features(void);

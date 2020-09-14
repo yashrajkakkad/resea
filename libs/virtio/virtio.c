@@ -1,3 +1,4 @@
+#include <endian.h>
 #include <driver/io.h>
 #include <virtio/virtio.h>
 
@@ -202,17 +203,17 @@ void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc) {
 /// as input ones from the device (e.g. RX virqueue in virtio-net).
 void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
                             bool writable) {
-    dma_t dma =dma_alloc(buffer_size * vq->num_descs, DMA_ALLOC_FROM_DEVICE);
+    dma_t dma = dma_alloc(buffer_size * vq->num_descs, DMA_ALLOC_FROM_DEVICE);
     vq->buffers_dma = dma;
     vq->buffers = dma_buf(dma);
     vq->buffer_size = buffer_size;
 
+    uint16_t flags = writable ? (VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE) : 0;
     for (int i = 0; i < vq->num_descs; i++) {
-        vq->descs[i].id = i;
-        vq->descs[i].addr = dma_daddr(dma) + (buffer_size * i);
-        vq->descs[i].len = buffer_size;
-        vq->descs[i].flags =
-            writable ? (VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE) : 0;
+        vq->descs[i].id = into_le16(i);
+        vq->descs[i].addr = into_le64(dma_daddr(dma) + (buffer_size * i));
+        vq->descs[i].len = into_le32(buffer_size);
+        vq->descs[i].flags = into_le16(flags);
     }
 }
 
@@ -277,8 +278,6 @@ error_t virtio_pci_init(int device_type, uint8_t *irq) {
         uint8_t cap_id = pci_config_read(pci_device, cap_off, sizeof(uint8_t));
         uint8_t cfg_type = pci_config_read(pci_device, cap_off + 3, sizeof(uint8_t));
         uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, sizeof(uint8_t));
-
-        TRACE("cap_id=%x, cfg_type=%x, bar_index=%d", cap_id, cfg_type, bar_index);
 
         if (cap_id == 9 && cfg_type == VIRTIO_PCI_CAP_COMMON_CFG) {
             uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
