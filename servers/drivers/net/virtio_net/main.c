@@ -6,6 +6,7 @@
 #include <driver/io.h>
 #include <driver/dma.h>
 #include <virtio/virtio.h>
+#include <endian.h>
 #include <string.h>
 #include "virtio_net.h"
 
@@ -33,8 +34,10 @@ void driver_handle_interrupt(void) {
     if (status & 1) {
         struct virtq_desc *desc;
         while ((desc = virtq_pop_desc(rx_virtq)) != NULL) {
-            struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, desc->id);
-            receive((const void *) buf->payload, desc->len - sizeof(buf->header));
+            uint16_t id = from_le16(desc->id);
+            uint32_t len = from_le32(desc->len);
+            struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, id);
+            receive((const void *) buf->payload, len - sizeof(buf->header));
             buf->header.num_buffers = 1;
             virtq_push_desc(rx_virtq, desc);
         }

@@ -62,15 +62,17 @@ static uint16_t num_virtqueues(void) {
 /// Returns true if the descriptor is available for the output to the device.
 /// XXX: should we count used_wrap_counter and use is_desc_used() instead?
 static bool is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
-    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
-    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
+    uint16_t flags = from_le16(desc->flags);
+    int avail = !!(flags & VIRTQ_DESC_F_AVAIL);
+    int used = !!(flags & VIRTQ_DESC_F_USED);
     return avail == used;
 }
 
 /// Returns true if the descriptor has been used by the device.
 static bool is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
-    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
-    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
+    uint16_t flags = from_le16(desc->flags);
+    int avail = !!(flags & VIRTQ_DESC_F_AVAIL);
+    int used = !!(flags & VIRTQ_DESC_F_USED);
     return avail == used && used == vq->used_wrap_counter;
 }
 
@@ -157,11 +159,13 @@ int virtq_alloc(struct virtio_virtq *vq, size_t len) {
         return -1;
     }
 
-    desc->flags =
+    uint16_t flags =
         (vq->avail_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
         | (!vq->avail_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
-    desc->len = len;
-    desc->id = index;
+
+    desc->flags = into_le16(flags);
+    desc->len = into_le32(len);
+    desc->id = into_le16(index);
 
     vq->next_avail++;
     if (vq->next_avail == vq->num_descs) {
@@ -186,11 +190,12 @@ struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq) {
 
 /// Makes the descriptor available for input from the device.
 void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc) {
-    desc->len = vq->buffer_size;
-    desc->flags =
-        VIRTQ_DESC_F_WRITE
+    uint16_t flags = VIRTQ_DESC_F_WRITE
         | (!vq->used_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
         | (vq->used_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
+
+    desc->len = into_le32(vq->buffer_size);
+    desc->flags = into_le16(flags);
 
     vq->next_used++;
     if (vq->next_used == vq->num_descs) {
