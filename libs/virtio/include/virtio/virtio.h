@@ -149,15 +149,13 @@ void virtio_init_virtqueues(void);
 void virtio_activate(void);
 uint8_t virtio_read_isr_status(void);
 
-void virtq_select(unsigned index);
 struct virtio_virtq *virtq_get(unsigned index);
 uint16_t virtq_size(void);
-struct virtq_desc *vq_desc(struct virtio_virtq *vq, unsigned index);
-void virtq_notify(struct virtio_virtq *vq);
+void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
+                            bool writable);
 int virtq_alloc(struct virtio_virtq *vq, size_t len);
 struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq);
 void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc);
-void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
-                            bool writable);
+void virtq_notify(struct virtio_virtq *vq);
 
 #endif

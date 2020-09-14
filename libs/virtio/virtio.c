@@ -42,6 +42,22 @@ static uint16_t virtio_num_virtqueues(void) {
     return VIRTIO_COMMON_CFG_READ16(num_queues);
 }
 
+static bool virtq_is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
+    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
+    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
+    return avail == used;
+}
+
+static bool virtq_is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
+    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
+    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
+    return avail == used && used == vq->used_wrap_counter;
+}
+
+static void virtq_select(unsigned index) {
+    VIRTIO_COMMON_CFG_WRITE8(queue_select, index);
+}
+
 void virtio_activate(void) {
     write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER_OK);
 }
@@ -50,10 +66,6 @@ void virtio_activate(void) {
 /// ("4.1.4.5 ISR status capability").
 uint8_t virtio_read_isr_status(void) {
     return io_read8(isr_struct_io, isr_cap_off);
-}
-
-void virtq_select(unsigned index) {
-    VIRTIO_COMMON_CFG_WRITE8(queue_select, index);
 }
 
 void virtq_init(unsigned index) {
@@ -103,28 +115,12 @@ uint16_t virtq_size(void) {
     return VIRTIO_COMMON_CFG_READ16(queue_size);
 }
 
-struct virtq_desc *vq_desc(struct virtio_virtq *vq, unsigned index) {
-    return &vq->descs[index];
-}
-
 struct virtio_virtq *virtq_get(unsigned index) {
     return &virtqs[index];
 }
 
 void virtq_notify(struct virtio_virtq *vq) {
     io_write16(notify_struct_io, vq->queue_notify_off, vq->index);
-}
-
-bool virtq_is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
-    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
-    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
-    return avail == used;
-}
-
-bool virtq_is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
-    int avail = !!(desc->flags & VIRTQ_DESC_F_AVAIL);
-    int used = !!(desc->flags & VIRTQ_DESC_F_USED);
-    return avail == used && used == vq->used_wrap_counter;
 }
 
 int virtq_alloc(struct virtio_virtq *vq, size_t len) {
@@ -153,13 +149,10 @@ int virtq_alloc(struct virtio_virtq *vq, size_t len) {
 
 struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq) {
     struct virtq_desc *desc = &vq->descs[vq->next_used];
-    INFO("pop index = %d: flags=%x, wrap=%d [%s]", vq->next_used, desc->flags, vq->used_wrap_counter,
-        !virtq_is_desc_used(vq, desc) ? "empty" : "full");
     if (!virtq_is_desc_used(vq, desc)) {
         return NULL;
     }
 
-    DBG("pop index = %d: max=%d, %d", vq->next_used, vq->num_descs, vq->next_used == vq->num_descs - 1);
     return desc;
 }
 

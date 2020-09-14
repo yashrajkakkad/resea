@@ -30,16 +30,13 @@ static struct virtio_net_buffer *virtq_net_buffer(struct virtio_virtq *vq,
 static void receive(const void *payload, size_t len);
 void driver_handle_interrupt(void) {
     uint8_t status = virtio_read_isr_status();
-    TRACE("IRQ status=%x ------------------------------------------------", status);
     if (status & 1) {
         struct virtq_desc *desc;
         while ((desc = virtq_pop_desc(rx_virtq)) != NULL) {
             struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, desc->id);
-            DBG("desc->len = %d", desc->len);
             receive((const void *) buf->payload, desc->len - sizeof(buf->header));
             buf->header.num_buffers = 1;
             virtq_push_desc(rx_virtq, desc);
-            DBG("freeing #%d (f=%x, used_c=%d)", desc->id, desc->flags, rx_virtq->used_wrap_counter);
         }
 
         virtq_notify(rx_virtq);
@@ -92,6 +89,10 @@ void main(void) {
     virtio_negotiate_feature(VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS);
     virtio_init_virtqueues();
 
+    // Allocate TX buffers.
+    tx_virtq = virtq_get(VIRTIO_NET_QUEUE_TX);
+    virtq_allocate_buffers(tx_virtq, sizeof(struct virtio_net_buffer), false);
+
     // Allocate RX buffers.
     rx_virtq = virtq_get(VIRTIO_NET_QUEUE_RX);
     virtq_allocate_buffers(rx_virtq, sizeof(struct virtio_net_buffer), true);
@@ -99,10 +100,6 @@ void main(void) {
         struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, i);
         buf->header.num_buffers = 1;
     }
-
-    // Allocate TX buffers.
-    tx_virtq = virtq_get(VIRTIO_NET_QUEUE_TX);
-    virtq_allocate_buffers(tx_virtq, sizeof(struct virtio_net_buffer), false);
 
     // Start listening for interrupts.
     ASSERT_OK(irq_acquire(irq));
