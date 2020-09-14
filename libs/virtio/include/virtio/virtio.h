@@ -10,6 +10,15 @@
 #include <driver/dma.h>
 #include <string.h>
 
+extern io_t common_cfg_io;
+extern offset_t common_cfg_off;
+extern io_t device_cfg_io;
+extern offset_t device_cfg_off;
+extern io_t notify_struct_io;
+extern offset_t notify_cap_off;
+extern io_t isr_struct_io;
+extern offset_t isr_cap_off;
+
 //
 //  PCI
 //
@@ -41,6 +50,11 @@ struct virtio_pci_common_cfg {
 } __packed;
 
 //
+//  "5 Device Types"
+//
+#define VIRTIO_DEVICE_NET      1
+
+//
 //  "2.1 Device Status Field"
 //
 #define VIRTIO_STATUS_ACK        1
@@ -63,6 +77,8 @@ struct virtio_virtq {
     /// Static buffers referenced from descriptors.
     dma_t buffers_dma;
     void *buffers;
+    /// The size of a buffer.
+    size_t buffer_size;
     /// The queue notify offset for the queue.
     offset_t queue_notify_off;
     /// The next descriptor index to be allocated.
@@ -92,6 +108,10 @@ struct virtq_desc {
     uint16_t flags;
 } __packed;
 
+struct virtq_event_suppress {
+    uint16_t desc;
+    uint16_t flags;
+} __packed;
 
 #define VIRTIO_COMMON_CFG_READ(size, field) \
     io_read ## size(common_cfg_io, common_cfg_off + \
@@ -122,32 +142,21 @@ struct virtq_desc {
 #define VIRTIO_DEVICE_CFG_READ32(struct_name, field) \
     VIRTIO_DEVICE_CFG_READ(32, struct_name, field)
 
-extern io_t common_cfg_io;
-extern offset_t common_cfg_off;
-extern io_t device_cfg_io;
-extern offset_t device_cfg_off;
-extern io_t notify_struct_io;
-extern offset_t notify_cap_off;
-extern offset_t notify_off_multiplier;
-extern io_t isr_struct_io;
-extern offset_t isr_cap_off;
+error_t virtio_pci_init(int device_type, uint8_t *irq);
+uint64_t virtio_device_features(void);
+void virtio_negotiate_feature(uint64_t features);
+void virtio_init_virtqueues(void);
+void virtio_activate(void);
+uint8_t virtio_read_isr_status(void);
 
-uint8_t read_device_status(void);
-void write_device_status(uint8_t value);
-void write_driver_feature(uint64_t value);
-uint16_t read_num_virtq(void);
 void virtq_select(unsigned index);
+struct virtio_virtq *virtq_get(unsigned index);
 uint16_t virtq_size(void);
-void virtq_enable(void);
-void virtq_set_desc_paddr(uint64_t paddr);
-void virtq_set_driver_paddr(uint64_t paddr);
-void virtq_set_device_paddr(uint64_t paddr);
+struct virtq_desc *vq_desc(struct virtio_virtq *vq, unsigned index);
 void virtq_notify(struct virtio_virtq *vq);
-struct virtq_desc *virtq_pop_used(struct virtio_virtq *vq);
-bool virtq_is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc);
-bool virtq_is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc);
 int virtq_alloc(struct virtio_virtq *vq, size_t len);
-void virtq_free_used(struct virtio_virtq *vq, struct virtq_desc *desc);
-uint8_t read_isr_status(void);
+struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq);
+void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc);
+void virtq_populate_buffers(struct virtio_virtq *vq, size_t buffer_size);
 
 #endif

@@ -7,121 +7,38 @@
 #include <driver/dma.h>
 #include <virtio/virtio.h>
 #include <string.h>
+#include "virtio_net.h"
 
-//
-//  Driver
-//
-typedef void (*receive_callback_t)(const uint8_t *payload, size_t len);
-struct net_driver_ops {
-    error_t (*init)(receive_callback_t receive);
-    error_t (*read_macaddr)(uint8_t *mac);
-    void (*transmit)(const uint8_t *payload, size_t len);
-    void (*handle_interrupt)(void);
-};
+static task_t tcpip_task;
+static struct virtio_virtq *tx_virtq = NULL;
+static struct virtio_virtq *rx_virtq = NULL;
 
-//
-//  Virtio-net
-//
-
-#define VIRTIO_NET_F_MAC         (1 << 5)
-#define VIRTIO_NET_F_STATUS      (1 << 16)
-#define VIRTIO_NET_QUEUE_RX  0
-#define VIRTIO_NET_QUEUE_TX  1
-
-struct virtio_net_config {
-    uint8_t mac0;
-    uint8_t mac1;
-    uint8_t mac2;
-    uint8_t mac3;
-    uint8_t mac4;
-    uint8_t mac5;
-    uint16_t status;
-    uint16_t max_virtqueue_pairs;
-    uint16_t mtu;
-} __packed;
-
-#define VIRTIO_NET_HDR_GSO_NONE 0
-struct virtio_net_header {
-    uint8_t flags;
-    uint8_t gso_type;
-    uint16_t len;
-    uint16_t gso_size;
-    uint16_t checksum_start;
-    uint16_t checksum_offset;
-    uint16_t num_buffers;
-} __packed;
-
-struct virtio_net_buffer {
-    struct virtio_net_header header;
-    uint8_t payload[PAGE_SIZE - sizeof(struct virtio_net_header)];
-} __packed;
-
-struct virtq_event_suppress {
-    uint16_t desc;
-    uint16_t flags;
-} __packed;
-
-/// The maximum number of virtqueues.
-#define NUM_VIRTQS_MAX 8
-
-//
-//  Driver
-//
-error_t driver_read_macaddr(uint8_t *mac) {
+static void read_macaddr(uint8_t *mac) {
     mac[0] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac0);
     mac[1] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac1);
     mac[2] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac2);
     mac[3] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac3);
     mac[4] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac4);
     mac[5] = VIRTIO_DEVICE_CFG_READ8(struct virtio_net_config, mac5);
-    return OK;
 }
 
-static struct virtio_virtq *tx_virtq = NULL;
-static struct virtio_virtq *rx_virtq = NULL;
-
-void driver_transmit(const uint8_t *payload, size_t len) {
-    int index =
-        virtq_alloc(tx_virtq, sizeof(struct virtio_net_header) + len);
-    if (index < 0) {
-        return;
-    }
-
-    struct virtio_net_buffer *buffers =
-        (struct virtio_net_buffer *) tx_virtq->buffers;
-    volatile struct virtio_net_buffer *buf = &buffers[index];
-    if (!buf) {
-        return;
-    }
-
-    ASSERT(len <= sizeof(buf->payload));
-    buf->header.flags = 0;
-    buf->header.gso_type = VIRTIO_NET_HDR_GSO_NONE;
-    buf->header.gso_size = 0;
-    buf->header.checksum_start = 0;
-    buf->header.checksum_offset = 0;
-    buf->header.num_buffers = 0;
-    memcpy((uint8_t *) &buf->payload, payload, len);
-
-    virtq_notify(tx_virtq);
+static struct virtio_net_buffer *virtq_net_buffer(struct virtio_virtq *vq,
+                                                  unsigned index) {
+    return &((struct virtio_net_buffer *) vq->buffers)[index];
 }
 
 static void receive(const void *payload, size_t len);
 void driver_handle_interrupt(void) {
-    struct virtio_net_buffer *buffers =
-        (struct virtio_net_buffer *) rx_virtq->buffers;
-
-    uint8_t status = read_isr_status();
+    uint8_t status = virtio_read_isr_status();
     TRACE("IRQ status=%x ------------------------------------------------", status);
     if (status & 1) {
         struct virtq_desc *desc;
-        while ((desc = virtq_pop_used(rx_virtq)) != NULL) {
-            volatile struct virtio_net_buffer *buf = &buffers[desc->id];
+        while ((desc = virtq_pop_desc(rx_virtq)) != NULL) {
+            struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, desc->id);
+            DBG("desc->len = %d", desc->len);
             receive((const void *) buf->payload, desc->len - sizeof(buf->header));
             buf->header.num_buffers = 1;
-            virtq_free_used(rx_virtq, desc);
-            desc->flags |= VIRTQ_DESC_F_WRITE;
-            desc->len = sizeof(struct virtio_net_buffer);
+            virtq_push_desc(rx_virtq, desc);
             DBG("freeing #%d (f=%x, used_c=%d)", desc->id, desc->flags, rx_virtq->used_wrap_counter);
         }
 
@@ -129,256 +46,74 @@ void driver_handle_interrupt(void) {
     }
 }
 
-error_t driver_init_for_pci(receive_callback_t receive) {
-    return OK;
-}
-
-struct net_driver_ops ops = {
-    .init = driver_init_for_pci,
-    .read_macaddr = driver_read_macaddr,
-    .transmit = driver_transmit,
-    .handle_interrupt = driver_handle_interrupt,
-};
-
-//
-//  Driver Library
-//
-static task_t tcpip_tid;
 static void receive(const void *payload, size_t len) {
     TRACE("received %d bytes", len);
     struct message m;
     m.type = NET_RX_MSG;
     m.net_rx.payload_len = len;
     m.net_rx.payload = (void *) payload;
-    error_t err = ipc_send(tcpip_tid, &m);
+    error_t err = ipc_send(tcpip_task, &m);
     ASSERT_OK(err);
 }
 
 static void transmit(void) {
+    // Receive a packet to be sent.
     struct message m;
-    ASSERT_OK(async_recv(tcpip_tid, &m));
+    ASSERT_OK(async_recv(tcpip_task, &m));
     ASSERT(m.type == NET_TX_MSG);
-    INFO("transmitting...");
-    driver_transmit(m.net_tx.payload, m.net_tx.payload_len);
+
+    // Allocate a desc for the transmission.
+    size_t len = m.net_tx.payload_len;
+    int index = virtq_alloc(tx_virtq, sizeof(struct virtio_net_header) + len);
+    if (index < 0) {
+        return;
+    }
+
+    // Fill the request.
+    struct virtio_net_buffer *buf = virtq_net_buffer(tx_virtq, index);
+    ASSERT(len <= sizeof(buf->payload));
+    buf->header.flags = 0;
+    buf->header.gso_type = VIRTIO_NET_HDR_GSO_NONE;
+    buf->header.gso_size = 0;
+    buf->header.checksum_start = 0;
+    buf->header.checksum_offset = 0;
+    buf->header.num_buffers = 0;
+    memcpy((uint8_t *) &buf->payload, m.net_tx.payload, len);
+
+    // Kick the device.
+    virtq_notify(tx_virtq);
     free((void *) m.net_tx.payload);
-}
-
-static task_t dm_server;
-
-uint32_t pci_config_read(handle_t device, unsigned offset, unsigned size) {
-    struct message m;
-    m.type = DM_PCI_READ_CONFIG_MSG;
-    m.dm_pci_read_config.handle = device;
-    m.dm_pci_read_config.offset = offset;
-    m.dm_pci_read_config.size = size;
-    ASSERT_OK(ipc_call(dm_server, &m));
-    return m.dm_pci_read_config_reply.value;
 }
 
 void main(void) {
     TRACE("starting...");
-
-    // Look for the e1000...
-    dm_server = ipc_lookup("dm");
-    struct message m;
-    m.type = DM_ATTACH_PCI_DEVICE_MSG;
-    m.dm_attach_pci_device.vendor_id = 0x1af4;
-    m.dm_attach_pci_device.device_id = 0x1000;
-    ASSERT_OK(ipc_call(dm_server, &m));
-    handle_t pci_device = m.dm_attach_pci_device_reply.handle;
-
-    // Walk capabilities list. A capability consists of the following fields
-    // (from "4.1.4 Virtio Structure PCI Capabilities"):
-    //
-    // struct virtio_pci_cap {
-    //     u8 cap_vndr;    /* Generic PCI field: PCI_CAP_ID_VNDR */
-    //     u8 cap_next;    /* Generic PCI field: next ptr. */
-    //     u8 cap_len;     /* Generic PCI field: capability length */
-    //     u8 cfg_type;    /* Identifies the structure. */
-    //     u8 bar;         /* Where to find it. */
-    //     u8 padding[3];  /* Pad to full dword. */
-    //     le32 offset;    /* Offset within bar. */
-    //     le32 length;    /* Length of the structure, in bytes. */
-    // };
-    uint8_t cap_off = pci_config_read(pci_device, 0x34, sizeof(uint8_t));
-    while (cap_off != 0) {
-        uint8_t cap_id = pci_config_read(pci_device, cap_off, sizeof(uint8_t));
-        uint8_t cfg_type = pci_config_read(pci_device, cap_off + 3, sizeof(uint8_t));
-        uint8_t bar_index = pci_config_read(pci_device, cap_off + 4, sizeof(uint8_t));
-
-        TRACE("cap_id=%x, cfg_type=%x, bar_index=%d", cap_id, cfg_type, bar_index);
-
-        if (cap_id == 9 && cfg_type == VIRTIO_PCI_CAP_COMMON_CFG) {
-            uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
-            ASSERT((bar & 1) == 0 && "only supports memory-mapped I/O access for now");
-            uint32_t bar_base = bar & ~0xf;
-            size_t size = pci_config_read(pci_device, cap_off + 12, 4);
-            common_cfg_off = pci_config_read(pci_device, cap_off + 8, 4);
-            common_cfg_io = io_alloc_memory_fixed(
-                bar_base,
-                ALIGN_UP(common_cfg_off + size, PAGE_SIZE),
-                IO_ALLOC_CONTINUOUS
-            );
-        }
-
-        if (cap_id == 9 && cfg_type == VIRTIO_PCI_CAP_DEVICE_CFG) {
-            // Device-specific configuration space.
-            uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
-            ASSERT((bar & 1) == 0 && "only supports memory-mapped I/O access for now");
-            uint32_t bar_base = bar & ~0xf;
-            size_t size = pci_config_read(pci_device, cap_off + 12, 4);
-            device_cfg_off = pci_config_read(pci_device, cap_off + 8, 4);
-            device_cfg_io = io_alloc_memory_fixed(
-                bar_base,
-                ALIGN_UP(device_cfg_off + size, PAGE_SIZE),
-                IO_ALLOC_CONTINUOUS
-            );
-        }
-
-        if (cap_id == 9 && cfg_type == VIRTIO_PCI_CAP_NOTIFY_CFG) {
-            // Notification structure:
-            //
-            // struct virtio_pci_notify_cap {
-            //     struct virtio_pci_cap cap;
-            //     le32 notify_off_multiplier; /* Multiplier for queue_notify_off. */
-            // };
-            notify_cap_off = pci_config_read(pci_device, cap_off + 8, 4);
-            notify_off_multiplier =
-                pci_config_read(pci_device, cap_off + 16, 4);
-            uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
-            ASSERT((bar & 1) == 0 && "only supports memory-mapped I/O access for now");
-            uint32_t bar_base = bar & ~0xf;
-            size_t size = pci_config_read(pci_device, cap_off + 12, 4);
-            notify_struct_io = io_alloc_memory_fixed(
-                bar_base,
-                ALIGN_UP(notify_cap_off + size, PAGE_SIZE),
-                IO_ALLOC_CONTINUOUS
-            );
-        }
-
-        if (cap_id == 9 && cfg_type == VIRTIO_PCI_CAP_ISR_CFG) {
-            // Notification structure:
-            //
-            // struct virtio_isr_cap {
-            //     u8 isr_status;
-            // };
-            isr_cap_off = pci_config_read(pci_device, cap_off + 8, 4);
-            uint32_t bar = pci_config_read(pci_device, 0x10 + 4 * bar_index, 4);
-            ASSERT((bar & 1) == 0 && "only supports memory-mapped I/O access for now");
-            uint32_t bar_base = bar & ~0xf;
-            size_t size = pci_config_read(pci_device, cap_off + 12, 4);
-            isr_struct_io = io_alloc_memory_fixed(
-                bar_base,
-                ALIGN_UP(isr_cap_off + size, PAGE_SIZE),
-                IO_ALLOC_CONTINUOUS
-            );
-        }
-
-        cap_off = pci_config_read(pci_device, cap_off + 1, sizeof(uint8_t));
-    }
-
-    ASSERT(common_cfg_io && device_cfg_io && notify_struct_io &&
-        "failed to locate the BAR for the device access");
-
-    // "3.1.1 Driver Requirements: Device Initialization"
-    write_device_status(0); // Reset the device.
-    write_device_status(read_device_status() | VIRTIO_STATUS_ACK);
-    write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER);
-
-    // Feature negotiation.
-    uint32_t feats = VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS;
-    write_driver_feature(feats | VIRTIO_F_VERSION_1 | VIRTIO_F_RING_PACKED);
-    write_device_status(read_device_status() | VIRTIO_STATUS_FEAT_OK);
-    ASSERT((read_device_status() & VIRTIO_STATUS_FEAT_OK) != 0);
-
-    // Initialize virtqueues.
-    unsigned num_virtq = read_num_virtq();
-    ASSERT(num_virtq < NUM_VIRTQS_MAX);
-    struct virtio_virtq virtqs[NUM_VIRTQS_MAX];
-    for (unsigned i = 0; i < num_virtq; i++) {
-        virtq_select(i);
-        size_t num_descs = virtq_size();
-        ASSERT(num_descs < 1024 && "too large queue size");
-
-        offset_t queue_notify_off =
-            notify_cap_off + VIRTIO_COMMON_CFG_READ16(queue_notify_off) * notify_off_multiplier;
-
-        // Allocate the descriptor area.
-        size_t descs_size = num_descs * sizeof(struct virtq_desc);
-        dma_t descs_dma =
-            dma_alloc(descs_size, DMA_ALLOC_TO_DEVICE | DMA_ALLOC_FROM_DEVICE);
-        memset(dma_buf(descs_dma), 0, descs_size);
-
-        // Allocate the driver area.
-        dma_t driver_dma =
-            dma_alloc(sizeof(struct virtq_event_suppress), DMA_ALLOC_TO_DEVICE);
-        memset(dma_buf(driver_dma), 0, sizeof(struct virtq_event_suppress));
-
-        // Allocate the device area.
-        dma_t device_dma =
-            dma_alloc(sizeof(struct virtq_event_suppress), DMA_ALLOC_TO_DEVICE);
-        memset(dma_buf(device_dma), 0, sizeof(struct virtq_event_suppress));
-
-        // Register physical addresses.
-        virtq_set_desc_paddr(dma_daddr(descs_dma));
-        virtq_set_driver_paddr(dma_daddr(driver_dma));
-        virtq_set_device_paddr(dma_daddr(device_dma));
-        virtq_enable();
-
-        virtqs[i].index = i;
-        virtqs[i].descs_dma = descs_dma;
-        virtqs[i].descs = (struct virtq_desc *) dma_buf(descs_dma);
-        virtqs[i].num_descs = num_descs;
-        virtqs[i].queue_notify_off = queue_notify_off;
-        virtqs[i].next_avail = 0;
-        virtqs[i].next_used = 0;
-        virtqs[i].avail_wrap_counter = 1;
-        virtqs[i].used_wrap_counter = 1;
-    }
+    uint8_t irq;
+    ASSERT_OK(virtio_pci_init(VIRTIO_DEVICE_NET, &irq));
+    virtio_negotiate_feature(VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS);
+    virtio_init_virtqueues();
 
     // Allocate RX buffers.
-    size_t buffer_size = sizeof(struct virtio_net_buffer);
-    rx_virtq = &virtqs[VIRTIO_NET_QUEUE_RX];
-    dma_t rx_dma = dma_alloc(
-        buffer_size * rx_virtq->num_descs,
-        DMA_ALLOC_FROM_DEVICE
-    );
-    rx_virtq->buffers_dma = rx_dma;
-    rx_virtq->buffers = dma_buf(rx_dma);
+    rx_virtq = virtq_get(VIRTIO_NET_QUEUE_RX);
+    virtq_populate_buffers(rx_virtq, sizeof(struct virtio_net_buffer));
     for (int i = 0; i < rx_virtq->num_descs; i++) {
-        rx_virtq->descs[i].id = i;
-        rx_virtq->descs[i].addr = dma_daddr(rx_dma) + (buffer_size * i);
-        rx_virtq->descs[i].len = buffer_size;
-        rx_virtq->descs[i].flags |= VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE;
-
-        struct virtio_net_buffer *buf =
-            &((struct virtio_net_buffer *) rx_virtq->buffers)[i];
+        struct virtq_desc *desc = vq_desc(rx_virtq, i);
+        struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, i);
+        desc->flags |= VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE;
         buf->header.num_buffers = 1;
     }
 
     // Allocate TX buffers.
-    tx_virtq = &virtqs[VIRTIO_NET_QUEUE_TX];
-    dma_t tx_dma = dma_alloc(
-        buffer_size * tx_virtq->num_descs,
-        DMA_ALLOC_FROM_DEVICE
-    );
-    tx_virtq->buffers_dma = tx_dma;
-    tx_virtq->buffers = dma_buf(tx_dma);
-    for (int i = 0; i < tx_virtq->num_descs; i++) {
-        tx_virtq->descs[i].addr = dma_daddr(tx_dma) + (buffer_size * i);
-    }
+    tx_virtq = virtq_get(VIRTIO_NET_QUEUE_TX);
+    virtq_populate_buffers(tx_virtq, sizeof(struct virtio_net_buffer));
 
     // Start listening for interrupts.
-    uint8_t irq = pci_config_read(pci_device, 0x3c, sizeof(uint8_t));
     ASSERT_OK(irq_acquire(irq));
 
     // Make the device active.
-    DBG("device active");
-    write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER_OK);
-    DBG("device actived");
+    virtio_activate();
 
     uint8_t mac[6];
-    driver_read_macaddr((uint8_t *) &mac);
+    read_macaddr((uint8_t *) &mac);
     INFO("initialized the device");
     INFO("MAC address = %02x:%02x:%02x:%02x:%02x:%02x",
          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -386,11 +121,12 @@ void main(void) {
     ASSERT_OK(ipc_serve("net"));
 
     // Register this driver.
-    tcpip_tid = ipc_lookup("tcpip");
-    ASSERT_OK(tcpip_tid);
+    tcpip_task = ipc_lookup("tcpip");
+    ASSERT_OK(tcpip_task);
+    struct message m;
     m.type = TCPIP_REGISTER_DEVICE_MSG;
     memcpy(m.tcpip_register_device.macaddr, mac, 6);
-    ASSERT_OK(ipc_call(tcpip_tid, &m));
+    ASSERT_OK(ipc_call(tcpip_task, &m));
 
     // The mainloop: receive and handle messages.
     INFO("ready");
