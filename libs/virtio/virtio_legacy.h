@@ -3,14 +3,15 @@
 
 #include <types.h>
 
-#define REG_DEVICE_FEATS   0x00
-#define REG_DRIVER_FEATS   0x04
-#define REG_QUEUE_ADDR     0x08
-#define REG_NUM_DESCS     0x0c
-#define REG_QUEUE_SELECT   0x0e
-#define REG_QUEUE_NOTIFY   0x10
-#define REG_DEVICE_STATUS  0x12
-#define REG_ISR_STATUS     0x13
+#define REG_DEVICE_FEATS       0x00
+#define REG_DRIVER_FEATS       0x04
+#define REG_QUEUE_ADDR         0x08
+#define REG_NUM_DESCS          0x0c
+#define REG_QUEUE_SELECT       0x0e
+#define REG_QUEUE_NOTIFY       0x10
+#define REG_DEVICE_STATUS      0x12
+#define REG_ISR_STATUS         0x13
+#define REG_DEVICE_CONFIG_BASE 0x14
 
 struct virtq_avail {
     uint16_t flags;

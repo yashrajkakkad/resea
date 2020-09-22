@@ -139,8 +139,7 @@ static uint32_t pci_config_read(handle_t device, unsigned offset, unsigned size)
 }
 
 static uint64_t read_device_config(offset_t offset, size_t size) {
-    // TODO:
-    return 0;
+    return io_read8(bar0_io, REG_DEVICE_CONFIG_BASE + offset);
 }
 
 struct virtio_ops virtio_legacy_ops = {
