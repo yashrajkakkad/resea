@@ -114,7 +114,7 @@ static error_t virtq_pop_desc(struct virtio_virtq *vq, int *index, size_t *len) 
 
 /// Makes the descriptor available for input from the device.
 static void virtq_push_desc(struct virtio_virtq *vq, int index) {
-    NYI();
+    vq->legacy.avail->ring[vq->legacy.avail->index++ % vq->num_descs] = index;
 }
 
 /// Allocates queue buffers. If `writable` is true, the buffers are initialized
@@ -132,6 +132,11 @@ static void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
         vq->legacy.descs[i].len = into_le32(buffer_size);
         vq->legacy.descs[i].flags = flags;
         vq->legacy.descs[i].next = 0;
+
+        if (writable) {
+            vq->legacy.avail->ring[i] = i;
+            vq->legacy.avail->index++;
+        }
     }
 }
 
