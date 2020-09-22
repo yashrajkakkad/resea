@@ -121,6 +121,11 @@ static void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
 
 /// Checks and enables features. It aborts if any of the features is not supported.
 static void negotiate_feature(uint64_t features) {
+    // Abort if the device does not support features we need.
+    ASSERT((read_device_features() & features) == features);
+    io_write32(bar0_io, REG_DRIVER_FEATS, features);
+    write_device_status(read_device_status() | VIRTIO_STATUS_FEAT_OK);
+    ASSERT((read_device_status() & VIRTIO_STATUS_FEAT_OK) != 0);
 }
 
 static uint32_t pci_config_read(handle_t device, unsigned offset, unsigned size) {
