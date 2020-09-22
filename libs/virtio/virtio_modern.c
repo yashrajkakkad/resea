@@ -112,11 +112,11 @@ static struct virtio_virtq *virtq_get(unsigned index) {
 
 /// Notifies the device that the queue contains a descriptor it needs to process.
 static void virtq_notify(struct virtio_virtq *vq) {
-    io_write16(notify_struct_io, vq->queue_notify_off, vq->index);
+    io_write16(notify_struct_io, vq->modern.queue_notify_off, vq->index);
 }
 
 /// Returns true if the descriptor is available for the output to the device.
-/// XXX: should we count used_wrap_counter and use is_desc_used() instead?
+/// XXX: should we count modern.used_wrap_counter and use is_desc_used() instead?
 static bool is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
     uint16_t flags = from_le16(desc->flags);
     int avail = !!(flags & VIRTQ_DESC_F_AVAIL);
@@ -129,7 +129,7 @@ static bool is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
     uint16_t flags = from_le16(desc->flags);
     int avail = !!(flags & VIRTQ_DESC_F_AVAIL);
     int used = !!(flags & VIRTQ_DESC_F_USED);
-    return avail == used && used == vq->used_wrap_counter;
+    return avail == used && used == vq->modern.used_wrap_counter;
 }
 
 /// Selects the current virtqueue in the common config.
@@ -173,11 +173,11 @@ static void virtq_init(unsigned index) {
     virtqs[index].descs_dma = descs_dma;
     virtqs[index].descs = (struct virtq_desc *) dma_buf(descs_dma);
     virtqs[index].num_descs = num_descs;
-    virtqs[index].queue_notify_off = queue_notify_off;
-    virtqs[index].next_avail = 0;
-    virtqs[index].next_used = 0;
-    virtqs[index].avail_wrap_counter = 1;
-    virtqs[index].used_wrap_counter = 1;
+    virtqs[index].modern.queue_notify_off = queue_notify_off;
+    virtqs[index].modern.next_avail = 0;
+    virtqs[index].modern.next_used = 0;
+    virtqs[index].modern.avail_wrap_counter = 1;
+    virtqs[index].modern.used_wrap_counter = 1;
 }
 
 static void activate(void) {
@@ -187,7 +187,7 @@ static void activate(void) {
 /// Allocates a descriptor for the ouput to the device (e.g. TX virtqueue in
 /// virtio-net).
 static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
-    int index = vq->next_avail;
+    int index = vq->modern.next_avail;
     struct virtq_desc *desc = &vq->descs[index];
 
     if (!is_desc_free(vq, desc)) {
@@ -195,17 +195,17 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     }
 
     uint16_t flags =
-        (vq->avail_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
-        | (!vq->avail_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
+        (vq->modern.avail_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
+        | (!vq->modern.avail_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
 
     desc->flags = into_le16(flags);
     desc->len = into_le32(len);
     desc->id = into_le16(index);
 
-    vq->next_avail++;
-    if (vq->next_avail == vq->num_descs) {
-        vq->avail_wrap_counter ^= 1;
-        vq->next_avail = 0;
+    vq->modern.next_avail++;
+    if (vq->modern.next_avail == vq->num_descs) {
+        vq->modern.avail_wrap_counter ^= 1;
+        vq->modern.next_avail = 0;
     }
 
     return index;
@@ -215,7 +215,7 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
 /// NULL if no descriptors are used. If the buffer is input from the device,
 /// call `virtq_push_desc` once you've handled the input.
 static struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq) {
-    struct virtq_desc *desc = &vq->descs[vq->next_used];
+    struct virtq_desc *desc = &vq->descs[vq->modern.next_used];
     if (!is_desc_used(vq, desc)) {
         return NULL;
     }
@@ -226,16 +226,16 @@ static struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq) {
 /// Makes the descriptor available for input from the device.
 static void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc) {
     uint16_t flags = VIRTQ_DESC_F_WRITE
-        | (!vq->used_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
-        | (vq->used_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
+        | (!vq->modern.used_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
+        | (vq->modern.used_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
 
     desc->len = into_le32(vq->buffer_size);
     desc->flags = into_le16(flags);
 
-    vq->next_used++;
-    if (vq->next_used == vq->num_descs) {
-        vq->used_wrap_counter ^= 1;
-        vq->next_used = 0;
+    vq->modern.next_used++;
+    if (vq->modern.next_used == vq->num_descs) {
+        vq->modern.used_wrap_counter ^= 1;
+        vq->modern.next_used = 0;
     }
 }
 

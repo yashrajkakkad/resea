@@ -4,8 +4,6 @@
 #include <types.h>
 #include <driver/io.h>
 #include <driver/dma.h>
-#include <driver/io.h>
-#include <driver/dma.h>
 
 #define VIRTIO_PCI_CAP_COMMON_CFG  1
 #define VIRTIO_PCI_CAP_NOTIFY_CFG  2
@@ -39,6 +37,20 @@ struct virtq_event_suppress {
     uint16_t flags;
 } __packed;
 
+struct virtio_virtq_modern {
+    /// The queue notify offset for the queue.
+    offset_t queue_notify_off;
+    /// The next descriptor index to be allocated.
+    int next_avail;
+    /// The next descriptor index to be used by the device.
+    int next_used;
+    /// Driver-side wrapping counter.
+    int avail_wrap_counter;
+    /// Device-side wrapping counter.
+    int used_wrap_counter;
+};
+
+struct virtio_ops;
 error_t virtio_modern_find_device(int device_type, struct virtio_ops **ops, uint8_t *irq);
 
 #endif

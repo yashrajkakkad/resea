@@ -3,7 +3,8 @@
 
 #include <types.h>
 #include <driver/dma.h>
-
+#include "../virtio_legacy.h"
+#include "../virtio_modern.h"
 
 //
 //  "5 Device Types"
@@ -33,18 +34,12 @@ struct virtio_virtq {
     /// Static buffers referenced from descriptors.
     dma_t buffers_dma;
     void *buffers;
-    /// The size of a buffer.
+    /// The size of a buffer entry.
     size_t buffer_size;
-    /// The queue notify offset for the queue.
-    offset_t queue_notify_off;
-    /// The next descriptor index to be allocated.
-    int next_avail;
-    /// The next descriptor index to be used by the device.
-    int next_used;
-    /// Driver-side wrapping counter.
-    int avail_wrap_counter;
-    /// Device-side wrapping counter.
-    int used_wrap_counter;
+    union {
+        struct virtio_virtq_legacy legacy;
+        struct virtio_virtq_modern modern;
+    };
 };
 
 #define VIRTQ_DESC_F_AVAIL_SHIFT  7
