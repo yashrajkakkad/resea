@@ -22,6 +22,13 @@
 #define VIRTIO_F_VERSION_1       (1ull << 32)
 #define VIRTIO_F_RING_PACKED     (1ull << 34)
 
+#define VIRTQ_DESC_F_NEXT         1
+#define VIRTQ_DESC_F_WRITE        2
+#define VIRTQ_DESC_F_AVAIL_SHIFT  7
+#define VIRTQ_DESC_F_USED_SHIFT   15
+#define VIRTQ_DESC_F_AVAIL        (1 << VIRTQ_DESC_F_AVAIL_SHIFT)
+#define VIRTQ_DESC_F_USED         (1 << VIRTQ_DESC_F_USED_SHIFT)
+
 /// A virtqueue.
 struct virtio_virtq {
     /// The virtqueue index.

@@ -73,8 +73,8 @@ static void virtq_init(unsigned index) {
 
     vaddr_t base = (vaddr_t) dma_buf(virtq_dma);
     virtqs[index].index = index;
+    virtqs[index].num_descs = num_descs;
     virtqs[index].legacy.virtq_dma = virtq_dma;
-    virtqs[index].legacy.num_descs = num_descs;
     virtqs[index].legacy.next_avail = 0;
     virtqs[index].legacy.descs = (struct virtq_desc *) (base);
     virtqs[index].legacy.avail = (struct virtq_avail *) (base + avail_ring_off);
@@ -88,23 +88,20 @@ static void activate(void) {
 /// Allocates a descriptor for the ouput to the device (e.g. TX virtqueue in
 /// virtio-net).
 static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
-    int index = vq->legacy.next_avail;
-    struct virtq_desc *desc = &vq->legacy.descs[index];
+    int desc_index = vq->legacy.next_avail % vq->num_descs;
+    struct virtq_desc *desc = &vq->legacy.descs[desc_index];
 
-    // if (!is_desc_free(vq, desc)) {
-        // return -1;
-    // }
+    // TODO: FIXME: Check if the descriptor is available.
 
-//    desc->flags = ;
-//    desc->len = into_le32(len);
-//    desc->id = into_le16(index);
+    desc->len = into_le32(len);
+    desc->flags = 0;
+    desc->next = 0; // TODO:
 
     vq->legacy.next_avail++;
-    if (vq->legacy.next_avail == vq->num_descs) {
-        vq->legacy.next_avail = 0;
-    }
-
-    return 0;
+    int ring_index = vq->legacy.avail->index % vq->num_descs;
+    vq->legacy.avail[desc_index].index++;
+    vq->legacy.avail->ring[ring_index] = desc_index;
+    return desc_index;
 }
 
 /// Returns the next descriptor which is already used by the device. If the
@@ -129,12 +126,12 @@ static void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
     vq->buffers = dma_buf(dma);
     vq->buffer_size = buffer_size;
 
-    uint16_t flags = writable ? (VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE) : 0;
+    uint16_t flags = writable ? VIRTQ_DESC_F_WRITE : 0;
     for (int i = 0; i < vq->num_descs; i++) {
-//        vq->legacy.descs[i].id = into_le16(i);
         vq->legacy.descs[i].addr = into_le64(dma_daddr(dma) + (buffer_size * i));
         vq->legacy.descs[i].len = into_le32(buffer_size);
-        vq->legacy.descs[i].flags = into_le16(flags);
+        vq->legacy.descs[i].flags = flags;
+        vq->legacy.descs[i].next = 0;
     }
 }
 

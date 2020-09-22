@@ -40,7 +40,6 @@ struct virtq_used {
 
 struct virtio_virtq_legacy {
     dma_t virtq_dma;
-    int num_descs;
     int next_avail;
     struct virtq_desc *descs;
     struct virtq_avail *avail;

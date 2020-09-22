@@ -37,12 +37,6 @@ struct virtq_event_suppress {
     uint16_t flags;
 } __packed;
 
-#define VIRTQ_DESC_F_AVAIL_SHIFT  7
-#define VIRTQ_DESC_F_USED_SHIFT   15
-#define VIRTQ_DESC_F_AVAIL        (1 << VIRTQ_DESC_F_AVAIL_SHIFT)
-#define VIRTQ_DESC_F_USED         (1 << VIRTQ_DESC_F_USED_SHIFT)
-#define VIRTQ_DESC_F_WRITE        2
-
 struct virtq_packed_desc {
     /// The physical buffer address.
     uint64_t addr;

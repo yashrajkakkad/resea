@@ -16,7 +16,7 @@ QEMUFLAGS += -device e1000,netdev=net0,mac=52:54:00:12:34:56
 QEMUFLAGS += -device virtio-net,netdev=net2,disable-modern=true
 QEMUFLAGS += -object filter-dump,id=fiter0,netdev=net0,file=e1000.pcap
 #QEMUFLAGS += -object filter-dump,id=fiter1,netdev=net1,file=virtio.pcap
-QEMUFLAGS += -object filter-dump,id=fiter2,netdev=net2,file=virtio.pcap
+QEMUFLAGS += -object filter-dump,id=fiter2,netdev=net2,file=virtio-legacy.pcap
 QEMUFLAGS += $(if $(SMP), -smp $(SMP))
 QEMUFLAGS += $(if $(GUI),,-nographic)
 
