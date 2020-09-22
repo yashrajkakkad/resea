@@ -31,14 +31,13 @@ static void receive(const void *payload, size_t len);
 void driver_handle_interrupt(void) {
     uint8_t status = virtio->read_isr_status();
     if (status & 1) {
-        struct virtq_desc *desc;
-        while ((desc = virtio->virtq_pop_desc(rx_virtq)) != NULL) {
-            uint16_t id = from_le16(desc->id);
-            uint32_t len = from_le32(desc->len);
-            struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, id);
+        int index;
+        size_t len;
+        while (virtio->virtq_pop_desc(rx_virtq, &index, &len) == OK) {
+            struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, index);
             receive((const void *) buf->payload, len - sizeof(buf->header));
             buf->header.num_buffers = 1;
-            virtio->virtq_push_desc(rx_virtq, desc);
+            virtio->virtq_push_desc(rx_virtq, index);
         }
 
         virtio->virtq_notify(rx_virtq);

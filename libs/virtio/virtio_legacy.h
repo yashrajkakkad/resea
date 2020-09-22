@@ -13,9 +13,16 @@
 #define REG_ISR_STATUS         0x13
 #define REG_DEVICE_CONFIG_BASE 0x14
 
+struct virtq_desc {
+    uint64_t addr;
+    uint32_t len;
+    uint16_t flags;
+    uint16_t next;
+} __packed;
+
 struct virtq_avail {
     uint16_t flags;
-    uint16_t idx;
+    uint16_t index;
     uint16_t ring[];
 } __packed;
 
@@ -27,14 +34,14 @@ struct virtq_used_elem {
 
 struct virtq_used {
     uint16_t flags;
-    uint16_t idx;
+    uint16_t index;
     struct virtq_used_elem ring[];
 } __packed;
-
 
 struct virtio_virtq_legacy {
     dma_t virtq_dma;
     int num_descs;
+    int next_avail;
     struct virtq_desc *descs;
     struct virtq_avail *avail;
     struct virtq_used *used;

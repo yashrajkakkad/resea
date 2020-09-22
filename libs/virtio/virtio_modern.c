@@ -112,7 +112,7 @@ static void virtq_notify(struct virtio_virtq *vq) {
 
 /// Returns true if the descriptor is available for the output to the device.
 /// XXX: should we count modern.used_wrap_counter and use is_desc_used() instead?
-static bool is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
+static bool is_desc_free(struct virtio_virtq *vq, struct virtq_packed_desc *desc) {
     uint16_t flags = from_le16(desc->flags);
     int avail = !!(flags & VIRTQ_DESC_F_AVAIL);
     int used = !!(flags & VIRTQ_DESC_F_USED);
@@ -120,7 +120,7 @@ static bool is_desc_free(struct virtio_virtq *vq, struct virtq_desc *desc) {
 }
 
 /// Returns true if the descriptor has been used by the device.
-static bool is_desc_used(struct virtio_virtq *vq, struct virtq_desc *desc) {
+static bool is_desc_used(struct virtio_virtq *vq, struct virtq_packed_desc *desc) {
     uint16_t flags = from_le16(desc->flags);
     int avail = !!(flags & VIRTQ_DESC_F_AVAIL);
     int used = !!(flags & VIRTQ_DESC_F_USED);
@@ -143,7 +143,7 @@ static void virtq_init(unsigned index) {
         notify_cap_off + VIRTIO_COMMON_CFG_READ16(queue_notify_off) * notify_off_multiplier;
 
     // Allocate the descriptor area.
-    size_t descs_size = num_descs * sizeof(struct virtq_desc);
+    size_t descs_size = num_descs * sizeof(struct virtq_packed_desc);
     dma_t descs_dma =
         dma_alloc(descs_size, DMA_ALLOC_TO_DEVICE | DMA_ALLOC_FROM_DEVICE);
     memset(dma_buf(descs_dma), 0, descs_size);
@@ -166,8 +166,8 @@ static void virtq_init(unsigned index) {
 
     virtqs[index].index = index;
     virtqs[index].descs_dma = descs_dma;
-    virtqs[index].descs = (struct virtq_desc *) dma_buf(descs_dma);
     virtqs[index].num_descs = num_descs;
+    virtqs[index].modern.descs = (struct virtq_packed_desc *) dma_buf(descs_dma);
     virtqs[index].modern.queue_notify_off = queue_notify_off;
     virtqs[index].modern.next_avail = 0;
     virtqs[index].modern.next_used = 0;
@@ -183,7 +183,7 @@ static void activate(void) {
 /// virtio-net).
 static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     int index = vq->modern.next_avail;
-    struct virtq_desc *desc = &vq->descs[index];
+    struct virtq_packed_desc *desc = &vq->modern.descs[index];
 
     if (!is_desc_free(vq, desc)) {
         return -1;
@@ -206,20 +206,23 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     return index;
 }
 
-/// Returns the next descriptor which is already used by the device. It returns
-/// NULL if no descriptors are used. If the buffer is input from the device,
-/// call `virtq_push_desc` once you've handled the input.
-static struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq) {
-    struct virtq_desc *desc = &vq->descs[vq->modern.next_used];
+/// Returns the next descriptor which is already used by the device. If the
+/// buffer is input from the device, call `virtq_push_desc` once you've handled
+/// the input.
+static error_t virtq_pop_desc(struct virtio_virtq *vq, int *index, size_t *len) {
+    struct virtq_packed_desc *desc = &vq->modern.descs[vq->modern.next_used];
     if (!is_desc_used(vq, desc)) {
-        return NULL;
+        return ERR_NOT_FOUND;
     }
 
-    return desc;
+    *index = from_le16(desc->id);
+    *len = from_le32(desc->len);
+    return OK;
 }
 
 /// Makes the descriptor available for input from the device.
-static void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc) {
+static void virtq_push_desc(struct virtio_virtq *vq, int index) {
+    struct virtq_packed_desc *desc = &vq->modern.descs[index];
     uint16_t flags = VIRTQ_DESC_F_WRITE
         | (!vq->modern.used_wrap_counter << VIRTQ_DESC_F_AVAIL_SHIFT)
         | (vq->modern.used_wrap_counter << VIRTQ_DESC_F_USED_SHIFT);
@@ -245,10 +248,10 @@ static void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
 
     uint16_t flags = writable ? (VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE) : 0;
     for (int i = 0; i < vq->num_descs; i++) {
-        vq->descs[i].id = into_le16(i);
-        vq->descs[i].addr = into_le64(dma_daddr(dma) + (buffer_size * i));
-        vq->descs[i].len = into_le32(buffer_size);
-        vq->descs[i].flags = into_le16(flags);
+        vq->modern.descs[i].id = into_le16(i);
+        vq->modern.descs[i].addr = into_le64(dma_daddr(dma) + (buffer_size * i));
+        vq->modern.descs[i].len = into_le32(buffer_size);
+        vq->modern.descs[i].flags = into_le16(flags);
     }
 }
 

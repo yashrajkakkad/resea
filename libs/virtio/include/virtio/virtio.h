@@ -28,7 +28,6 @@ struct virtio_virtq {
     unsigned index;
     /// Descriptors.
     dma_t descs_dma;
-    struct virtq_desc *descs;
     /// The number of descriptors.
     int num_descs;
     /// Static buffers referenced from descriptors.
@@ -42,23 +41,6 @@ struct virtio_virtq {
     };
 };
 
-#define VIRTQ_DESC_F_AVAIL_SHIFT  7
-#define VIRTQ_DESC_F_USED_SHIFT   15
-#define VIRTQ_DESC_F_AVAIL        (1 << VIRTQ_DESC_F_AVAIL_SHIFT)
-#define VIRTQ_DESC_F_USED         (1 << VIRTQ_DESC_F_USED_SHIFT)
-#define VIRTQ_DESC_F_WRITE        2
-
-struct virtq_desc {
-    /// The physical buffer address.
-    uint64_t addr;
-    /// The buffer Length.
-    uint32_t len;
-    /// The buffer ID.
-    uint16_t id;
-    /// Flags.
-    uint16_t flags;
-} __packed;
-
 struct virtio_ops {
     uint64_t (*read_device_features)(void);
     void (*negotiate_feature)(uint64_t features);
@@ -70,8 +52,8 @@ struct virtio_ops {
     uint16_t (*virtq_size)(void);
     void (*virtq_allocate_buffers)(struct virtio_virtq *vq, size_t buffer_size, bool writable);
     int (*virtq_alloc)(struct virtio_virtq *vq, size_t len);
-    struct virtq_desc *(*virtq_pop_desc)(struct virtio_virtq *vq);
-    void (*virtq_push_desc)(struct virtio_virtq *vq, struct virtq_desc *desc);
+    error_t (*virtq_pop_desc)(struct virtio_virtq *vq, int *index, size_t *size);
+    void (*virtq_push_desc)(struct virtio_virtq *vq, int index);
     void (*virtq_notify)(struct virtio_virtq *vq);
 };
 

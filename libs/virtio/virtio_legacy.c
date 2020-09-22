@@ -75,6 +75,7 @@ static void virtq_init(unsigned index) {
     virtqs[index].index = index;
     virtqs[index].legacy.virtq_dma = virtq_dma;
     virtqs[index].legacy.num_descs = num_descs;
+    virtqs[index].legacy.next_avail = 0;
     virtqs[index].legacy.descs = (struct virtq_desc *) (base);
     virtqs[index].legacy.avail = (struct virtq_avail *) (base + avail_ring_off);
     virtqs[index].legacy.used = (struct virtq_used *) (base + used_ring_off);
@@ -87,18 +88,36 @@ static void activate(void) {
 /// Allocates a descriptor for the ouput to the device (e.g. TX virtqueue in
 /// virtio-net).
 static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
+    int index = vq->legacy.next_avail;
+    struct virtq_desc *desc = &vq->legacy.descs[index];
+
+    // if (!is_desc_free(vq, desc)) {
+        // return -1;
+    // }
+
+//    desc->flags = ;
+//    desc->len = into_le32(len);
+//    desc->id = into_le16(index);
+
+    vq->legacy.next_avail++;
+    if (vq->legacy.next_avail == vq->num_descs) {
+        vq->legacy.next_avail = 0;
+    }
+
     return 0;
 }
 
-/// Returns the next descriptor which is already used by the device. It returns
-/// NULL if no descriptors are used. If the buffer is input from the device,
-/// call `virtq_push_desc` once you've handled the input.
-static struct virtq_desc *virtq_pop_desc(struct virtio_virtq *vq) {
-    return NULL;
+/// Returns the next descriptor which is already used by the device. If the
+/// buffer is input from the device, call `virtq_push_desc` once you've handled
+/// the input.
+static error_t virtq_pop_desc(struct virtio_virtq *vq, int *index, size_t *len) {
+    NYI();
+    return OK;
 }
 
 /// Makes the descriptor available for input from the device.
-static void virtq_push_desc(struct virtio_virtq *vq, struct virtq_desc *desc) {
+static void virtq_push_desc(struct virtio_virtq *vq, int index) {
+    NYI();
 }
 
 /// Allocates queue buffers. If `writable` is true, the buffers are initialized
@@ -112,10 +131,10 @@ static void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
 
     uint16_t flags = writable ? (VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE) : 0;
     for (int i = 0; i < vq->num_descs; i++) {
-        vq->descs[i].id = into_le16(i);
-        vq->descs[i].addr = into_le64(dma_daddr(dma) + (buffer_size * i));
-        vq->descs[i].len = into_le32(buffer_size);
-        vq->descs[i].flags = into_le16(flags);
+//        vq->legacy.descs[i].id = into_le16(i);
+        vq->legacy.descs[i].addr = into_le64(dma_daddr(dma) + (buffer_size * i));
+        vq->legacy.descs[i].len = into_le32(buffer_size);
+        vq->legacy.descs[i].flags = into_le16(flags);
     }
 }
 

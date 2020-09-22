@@ -37,7 +37,25 @@ struct virtq_event_suppress {
     uint16_t flags;
 } __packed;
 
+#define VIRTQ_DESC_F_AVAIL_SHIFT  7
+#define VIRTQ_DESC_F_USED_SHIFT   15
+#define VIRTQ_DESC_F_AVAIL        (1 << VIRTQ_DESC_F_AVAIL_SHIFT)
+#define VIRTQ_DESC_F_USED         (1 << VIRTQ_DESC_F_USED_SHIFT)
+#define VIRTQ_DESC_F_WRITE        2
+
+struct virtq_packed_desc {
+    /// The physical buffer address.
+    uint64_t addr;
+    /// The buffer Length.
+    uint32_t len;
+    /// The buffer ID.
+    uint16_t id;
+    /// Flags.
+    uint16_t flags;
+} __packed;
+
 struct virtio_virtq_modern {
+    struct virtq_packed_desc *descs;
     /// The queue notify offset for the queue.
     offset_t queue_notify_off;
     /// The next descriptor index to be allocated.
