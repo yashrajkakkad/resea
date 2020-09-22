@@ -91,7 +91,9 @@ void main(void) {
     uint8_t irq;
     ASSERT_OK(virtio_find_device(VIRTIO_DEVICE_NET, &virtio, &irq));
     virtio->negotiate_feature(VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS);
-    virtio->init_virtqueues();
+
+    virtio->virtq_init(VIRTIO_NET_QUEUE_RX);
+    virtio->virtq_init(VIRTIO_NET_QUEUE_TX);
 
     // Allocate TX buffers.
     tx_virtq = virtio->virtq_get(VIRTIO_NET_QUEUE_TX);

@@ -62,10 +62,10 @@ struct virtq_desc {
 struct virtio_ops {
     uint64_t (*read_device_features)(void);
     void (*negotiate_feature)(uint64_t features);
-    void (*init_virtqueues)(void);
     uint64_t (*read_device_config)(offset_t offset, size_t size);
     void (*activate)(void);
     uint8_t (*read_isr_status)(void);
+    void (*virtq_init)(unsigned index);
     struct virtio_virtq *(*virtq_get)(unsigned index);
     uint16_t (*virtq_size)(void);
     void (*virtq_allocate_buffers)(struct virtio_virtq *vq, size_t buffer_size, bool writable);

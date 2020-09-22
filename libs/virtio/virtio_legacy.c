@@ -13,35 +13,36 @@
 
 static task_t dm_server;
 static struct virtio_virtq virtqs[NUM_VIRTQS_MAX];
-static offset_t notify_off_multiplier;
 static io_t bar0_io = NULL;
 
 static uint8_t read_device_status(void) {
-    return 0;
+    return io_read8(bar0_io, REG_DEVICE_STATUS);
 }
 
 static void write_device_status(uint8_t value) {
+    io_write8(bar0_io, REG_DEVICE_STATUS, value);
 }
 
 static uint64_t read_device_features(void) {
-    return 0;
+    return io_read32(bar0_io, REG_DEVICE_FEATS);
 }
 
 
 /// Returns the number of virtqueues in the device.
 static uint16_t num_virtqueues(void) {
+    NYI();
     return 0;
 }
 
 /// Reads the ISR status and de-assert an interrupt
 /// ("4.1.4.5 ISR status capability").
 static uint8_t read_isr_status(void) {
-    return 0;
+    return io_read8(bar0_io, REG_ISR_STATUS);
 }
 
 /// Returns the number of descriptors in total in the queue.
 static uint16_t virtq_size(void) {
-    return 0;
+    return io_read16(bar0_io, REG_QUEUE_SIZE);
 }
 
 /// Returns the `index`-th virtqueue.
@@ -51,10 +52,12 @@ static struct virtio_virtq *virtq_get(unsigned index) {
 
 /// Notifies the device that the queue contains a descriptor it needs to process.
 static void virtq_notify(struct virtio_virtq *vq) {
+    return io_write16(bar0_io, REG_QUEUE_NOTIFY, vq->index);
 }
 
 /// Selects the current virtqueue in the common config.
 static void virtq_select(unsigned index) {
+    return io_write16(bar0_io, REG_QUEUE_SELECT, index);
 }
 
 /// Initializes a virtqueue.
@@ -64,6 +67,7 @@ static void virtq_init(unsigned index) {
     size_t num_descs = virtq_size();
     ASSERT(num_descs < 1024 && "too large queue size");
 
+    /*
     offset_t queue_notify_off =
         notify_cap_off + VIRTIO_COMMON_CFG_READ16(queue_notify_off) * notify_off_multiplier;
 
@@ -93,6 +97,7 @@ static void virtq_init(unsigned index) {
     virtqs[index].descs_dma = descs_dma;
     virtqs[index].descs = (struct virtq_desc *) dma_buf(descs_dma);
     virtqs[index].num_descs = num_descs;
+    */
 }
 
 static void activate(void) {
@@ -153,23 +158,13 @@ static uint64_t read_device_config(offset_t offset, size_t size) {
     return 0;
 }
 
-/// Initializes virtqueues. Note that you should initialize them before filling
-/// buffers.
-static void init_virtqueues(void) {
-    unsigned num_virtq = num_virtqueues();
-    ASSERT(num_virtq < NUM_VIRTQS_MAX);
-    for (unsigned i = 0; i < num_virtq; i++) {
-        virtq_init(i);
-    }
-}
-
 struct virtio_ops virtio_legacy_ops = {
     .read_device_features = read_device_features,
     .negotiate_feature = negotiate_feature,
-    .init_virtqueues = init_virtqueues,
     .read_device_config = read_device_config,
     .activate = activate,
     .read_isr_status = read_isr_status,
+    .virtq_init = virtq_init,
     .virtq_get = virtq_get,
     .virtq_size = virtq_size,
     .virtq_allocate_buffers = virtq_allocate_buffers,
@@ -191,6 +186,11 @@ error_t virtio_legacy_find_device(int device_type, struct virtio_ops **ops, uint
     ASSERT_OK(ipc_call(dm_server, &m));
     handle_t pci_device = m.dm_attach_pci_device_reply.handle;
 
+    uint32_t bar0 = pci_config_read(pci_device, 0x10, sizeof(uint8_t));
+    ASSERT((bar0 & 1) == 1 && "BAR#0 should be io-mapped");
+
+    bar0_io = io_alloc_port(bar0 & ~0b11, 32, IO_ALLOC_NORMAL);
+
     // Read the IRQ vector.
     *irq = pci_config_read(pci_device, 0x3c, sizeof(uint8_t));
     *ops = &virtio_legacy_ops;
@@ -200,5 +200,6 @@ error_t virtio_legacy_find_device(int device_type, struct virtio_ops **ops, uint
     write_device_status(read_device_status() | VIRTIO_STATUS_ACK);
     write_device_status(read_device_status() | VIRTIO_STATUS_DRIVER);
 
+    TRACE("found a virtio-legacy device");
     return OK;
 }

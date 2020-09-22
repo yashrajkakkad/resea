@@ -89,11 +89,6 @@ static void set_device_paddr(uint64_t paddr) {
     VIRTIO_COMMON_CFG_WRITE32(queue_device_hi, paddr >> 32);
 }
 
-/// Returns the number of virtqueues in the device.
-static uint16_t num_virtqueues(void) {
-    return VIRTIO_COMMON_CFG_READ16(num_queues);
-}
-
 /// Reads the ISR status and de-assert an interrupt
 /// ("4.1.4.5 ISR status capability").
 static uint8_t read_isr_status(void) {
@@ -295,23 +290,13 @@ static uint64_t read_device_config(offset_t offset, size_t size) {
     }
 }
 
-/// Initializes virtqueues. Note that you should initialize them before filling
-/// buffers.
-static void init_virtqueues(void) {
-    unsigned num_virtq = num_virtqueues();
-    ASSERT(num_virtq < NUM_VIRTQS_MAX);
-    for (unsigned i = 0; i < num_virtq; i++) {
-        virtq_init(i);
-    }
-}
-
 struct virtio_ops virtio_modern_ops = {
     .read_device_features = read_device_features,
     .negotiate_feature = negotiate_feature,
-    .init_virtqueues = init_virtqueues,
     .read_device_config = read_device_config,
     .activate = activate,
     .read_isr_status = read_isr_status,
+    .virtq_init = virtq_init,
     .virtq_get = virtq_get,
     .virtq_size = virtq_size,
     .virtq_allocate_buffers = virtq_allocate_buffers,
