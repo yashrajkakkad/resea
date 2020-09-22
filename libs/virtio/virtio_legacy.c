@@ -27,13 +27,6 @@ static uint64_t read_device_features(void) {
     return io_read32(bar0_io, REG_DEVICE_FEATS);
 }
 
-
-/// Returns the number of virtqueues in the device.
-static uint16_t num_virtqueues(void) {
-    NYI();
-    return 0;
-}
-
 /// Reads the ISR status and de-assert an interrupt
 /// ("4.1.4.5 ISR status capability").
 static uint8_t read_isr_status(void) {
@@ -41,8 +34,8 @@ static uint8_t read_isr_status(void) {
 }
 
 /// Returns the number of descriptors in total in the queue.
-static uint16_t virtq_size(void) {
-    return io_read16(bar0_io, REG_QUEUE_SIZE);
+static uint16_t virtq_num_descs(void) {
+    return io_read16(bar0_io, REG_NUM_DESCS);
 }
 
 /// Returns the `index`-th virtqueue.
@@ -64,40 +57,27 @@ static void virtq_select(unsigned index) {
 static void virtq_init(unsigned index) {
     virtq_select(index);
 
-    size_t num_descs = virtq_size();
+    size_t num_descs = virtq_num_descs();
     ASSERT(num_descs < 1024 && "too large queue size");
 
-    /*
-    offset_t queue_notify_off =
-        notify_cap_off + VIRTIO_COMMON_CFG_READ16(queue_notify_off) * notify_off_multiplier;
+    offset_t avail_ring_off = sizeof(struct virtq_desc) * num_descs;
+    size_t avail_ring_size = sizeof(uint16_t) * (3 + num_descs);
+    offset_t used_ring_off = ALIGN_UP(avail_ring_off + avail_ring_size, PAGE_SIZE);
+    size_t used_ring_size =
+        sizeof(uint16_t) * 3 + sizeof(struct virtq_used_elem) * num_descs;
+    size_t virtq_size = used_ring_off + ALIGN_UP(used_ring_size, PAGE_SIZE);
 
-    // Allocate the descriptor area.
-    size_t descs_size = num_descs * sizeof(struct virtq_desc);
-    dma_t descs_dma =
-        dma_alloc(descs_size, DMA_ALLOC_TO_DEVICE | DMA_ALLOC_FROM_DEVICE);
-    memset(dma_buf(descs_dma), 0, descs_size);
+    dma_t virtq_dma =
+        dma_alloc(virtq_size, DMA_ALLOC_TO_DEVICE | DMA_ALLOC_FROM_DEVICE);
+    memset(dma_buf(virtq_dma), 0, virtq_size);
 
-    // Allocate the driver area.
-    dma_t driver_dma =
-        dma_alloc(sizeof(struct virtq_event_suppress), DMA_ALLOC_TO_DEVICE);
-    memset(dma_buf(driver_dma), 0, sizeof(struct virtq_event_suppress));
-
-    // Allocate the device area.
-    dma_t device_dma =
-        dma_alloc(sizeof(struct virtq_event_suppress), DMA_ALLOC_TO_DEVICE);
-    memset(dma_buf(device_dma), 0, sizeof(struct virtq_event_suppress));
-
-    // Register physical addresses.
-    set_desc_paddr(dma_daddr(descs_dma));
-    set_driver_paddr(dma_daddr(driver_dma));
-    set_device_paddr(dma_daddr(device_dma));
-    VIRTIO_COMMON_CFG_WRITE16(queue_enable, 1);
-
+    vaddr_t base = (vaddr_t) dma_buf(virtq_dma);
     virtqs[index].index = index;
-    virtqs[index].descs_dma = descs_dma;
-    virtqs[index].descs = (struct virtq_desc *) dma_buf(descs_dma);
-    virtqs[index].num_descs = num_descs;
-    */
+    virtqs[index].legacy.virtq_dma = virtq_dma;
+    virtqs[index].legacy.num_descs = num_descs;
+    virtqs[index].legacy.descs = (struct virtq_desc *) (base);
+    virtqs[index].legacy.avail = (struct virtq_avail *) (base + avail_ring_off);
+    virtqs[index].legacy.used = (struct virtq_used *) (base + used_ring_off);
 }
 
 static void activate(void) {
@@ -166,7 +146,6 @@ struct virtio_ops virtio_legacy_ops = {
     .read_isr_status = read_isr_status,
     .virtq_init = virtq_init,
     .virtq_get = virtq_get,
-    .virtq_size = virtq_size,
     .virtq_allocate_buffers = virtq_allocate_buffers,
     .virtq_alloc = virtq_alloc,
     .virtq_pop_desc = virtq_pop_desc,
@@ -186,7 +165,7 @@ error_t virtio_legacy_find_device(int device_type, struct virtio_ops **ops, uint
     ASSERT_OK(ipc_call(dm_server, &m));
     handle_t pci_device = m.dm_attach_pci_device_reply.handle;
 
-    uint32_t bar0 = pci_config_read(pci_device, 0x10, sizeof(uint8_t));
+    uint32_t bar0 = pci_config_read(pci_device, 0x10, sizeof(uint32_t));
     ASSERT((bar0 & 1) == 1 && "BAR#0 should be io-mapped");
 
     bar0_io = io_alloc_port(bar0 & ~0b11, 32, IO_ALLOC_NORMAL);

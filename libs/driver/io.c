@@ -110,6 +110,7 @@ uint16_t io_read16(io_t io, offset_t offset) {
             uint16_t value;
             uint16_t port = io->port.base + offset;
             __asm__ __volatile__("inw %1, %0" : "=a"(value) : "Nd"(port));
+            DBG("read16: port=%x, value=%x", port, value);
             return value;
 #else
             PANIC("port-mapped I/O is not supported");
