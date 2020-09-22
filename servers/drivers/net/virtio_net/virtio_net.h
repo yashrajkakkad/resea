@@ -9,12 +9,7 @@
 #define VIRTIO_NET_QUEUE_TX   1
 
 struct virtio_net_config {
-    uint8_t mac0;
-    uint8_t mac1;
-    uint8_t mac2;
-    uint8_t mac3;
-    uint8_t mac4;
-    uint8_t mac5;
+    uint8_t mac[6];
     uint16_t status;
     uint16_t max_virtqueue_pairs;
     uint16_t mtu;
