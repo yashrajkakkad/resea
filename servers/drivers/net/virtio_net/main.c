@@ -30,6 +30,7 @@ static struct virtio_net_buffer *virtq_net_buffer(struct virtio_virtq *vq,
 static void receive(const void *payload, size_t len);
 void driver_handle_interrupt(void) {
     uint8_t status = virtio->read_isr_status();
+    DBG("IRQ val=%x", status);
     if (status & 1) {
         int index;
         size_t len;
