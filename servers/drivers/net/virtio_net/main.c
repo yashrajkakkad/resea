@@ -89,7 +89,7 @@ void main(void) {
     // Look for and initialize a virtio-net device.
     uint8_t irq;
     ASSERT_OK(virtio_find_device(VIRTIO_DEVICE_NET, &virtio, &irq));
-    virtio->negotiate_feature(VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS);
+    virtio->negotiate_feature(VIRTIO_NET_F_MAC | VIRTIO_NET_F_MRG_RXBUF | VIRTIO_NET_F_STATUS);
 
     virtio->virtq_init(VIRTIO_NET_QUEUE_RX);
     virtio->virtq_init(VIRTIO_NET_QUEUE_TX);
