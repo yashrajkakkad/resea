@@ -156,6 +156,7 @@ void main(void) {
                 if ((m.notifications.data & NOTIFY_TIMER) != 0) {
                     error_t err = timer_set(TIMER_INTERVAL);
                     ASSERT_OK(err);
+                    INFO("tcpip!");
                     uptime += TIMER_INTERVAL;
                 }
 
