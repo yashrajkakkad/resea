@@ -45,12 +45,13 @@ static struct virtio_virtq *virtq_get(unsigned index) {
 
 /// Notifies the device that the queue contains a descriptor it needs to process.
 static void virtq_notify(struct virtio_virtq *vq) {
-    return io_write16(bar0_io, REG_QUEUE_NOTIFY, vq->index);
+    DBG("virtq_notify!");
+    io_write16(bar0_io, REG_QUEUE_NOTIFY, vq->index);
 }
 
 /// Selects the current virtqueue in the common config.
 static void virtq_select(unsigned index) {
-    return io_write16(bar0_io, REG_QUEUE_SELECT, index);
+    io_write16(bar0_io, REG_QUEUE_SELECT, index);
 }
 
 /// Initializes a virtqueue.
@@ -76,9 +77,11 @@ static void virtq_init(unsigned index) {
     virtqs[index].num_descs = num_descs;
     virtqs[index].legacy.virtq_dma = virtq_dma;
     virtqs[index].legacy.next_avail = 0;
-    virtqs[index].legacy.descs = (struct virtq_desc *) (base);
+    virtqs[index].legacy.descs = (struct virtq_desc *) base;
     virtqs[index].legacy.avail = (struct virtq_avail *) (base + avail_ring_off);
     virtqs[index].legacy.used = (struct virtq_used *) (base + used_ring_off);
+
+    io_write32(bar0_io, REG_QUEUE_ADDR, dma_daddr(virtq_dma));
 }
 
 static void activate(void) {

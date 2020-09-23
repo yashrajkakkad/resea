@@ -54,6 +54,7 @@ void io_write16(io_t io, offset_t offset, uint16_t value) {
         case IO_SPACE_IO: {
 #ifdef CONFIG_ARCH_X64
             uint16_t port = io->port.base + offset;
+            DBG("iow16: port=%x", port);
             __asm__ __volatile__("outw %0, %1" :: "a"(value), "Nd"(port));
             break;
 #else
