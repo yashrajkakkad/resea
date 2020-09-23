@@ -79,7 +79,8 @@ static void virtq_init(unsigned index) {
     virtqs[index].index = index;
     virtqs[index].num_descs = num_descs;
     virtqs[index].legacy.virtq_dma = virtq_dma;
-    virtqs[index].legacy.next_avail = 0;
+    virtqs[index].legacy.next_avail_index = 0;
+    virtqs[index].legacy.last_used_index = 0;
     virtqs[index].legacy.descs = (struct virtq_desc *) base;
     virtqs[index].legacy.avail = (struct virtq_avail *) (base + avail_ring_off);
     virtqs[index].legacy.used = (struct virtq_used *) (base + used_ring_off);
@@ -96,7 +97,7 @@ static void activate(void) {
 /// Allocates a descriptor for the ouput to the device (e.g. TX virtqueue in
 /// virtio-net).
 static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
-    int desc_index = vq->legacy.next_avail % vq->num_descs;
+    int desc_index = vq->legacy.next_avail_index % vq->num_descs;
     struct virtq_desc *desc = &vq->legacy.descs[desc_index];
 
     // TODO: FIXME: Check if the descriptor is available.
@@ -105,7 +106,7 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     desc->flags = 0;
     desc->next = 0; // TODO:
 
-    vq->legacy.next_avail++;
+    vq->legacy.next_avail_index++;
     int ring_index = vq->legacy.avail->index % vq->num_descs;
     vq->legacy.avail->index++;
     vq->legacy.avail->ring[ring_index] = desc_index;
@@ -116,7 +117,14 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
 /// buffer is input from the device, call `virtq_push_desc` once you've handled
 /// the input.
 static error_t virtq_pop_desc(struct virtio_virtq *vq, int *index, size_t *len) {
-    NYI();
+    if (vq->legacy.last_used_index == vq->legacy.used->index) {
+        return ERR_EMPTY;
+    }
+
+    struct virtq_used_elem *used_elem = &vq->legacy.used->ring[vq->legacy.last_used_index];
+    *index = used_elem->id;
+    *len = used_elem->len;
+    vq->legacy.last_used_index++;
     return OK;
 }
 
