@@ -68,6 +68,9 @@ static void virtq_init(unsigned index) {
         sizeof(uint16_t) * 3 + sizeof(struct virtq_used_elem) * num_descs;
     size_t virtq_size = used_ring_off + ALIGN_UP(used_ring_size, PAGE_SIZE);
 
+    INFO("avail_ring_off = %p", avail_ring_off);
+    INFO("used_ring_off = %p", used_ring_off);
+
     dma_t virtq_dma =
         dma_alloc(virtq_size, DMA_ALLOC_TO_DEVICE | DMA_ALLOC_FROM_DEVICE);
     memset(dma_buf(virtq_dma), 0, virtq_size);
@@ -81,7 +84,9 @@ static void virtq_init(unsigned index) {
     virtqs[index].legacy.avail = (struct virtq_avail *) (base + avail_ring_off);
     virtqs[index].legacy.used = (struct virtq_used *) (base + used_ring_off);
 
-    io_write32(bar0_io, REG_QUEUE_ADDR, dma_daddr(virtq_dma));
+    paddr_t paddr = dma_daddr(virtq_dma);
+    ASSERT(IS_ALIGNED(paddr, PAGE_SIZE));
+    io_write32(bar0_io, REG_QUEUE_ADDR, paddr / PAGE_SIZE);
 }
 
 static void activate(void) {
@@ -102,7 +107,7 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
 
     vq->legacy.next_avail++;
     int ring_index = vq->legacy.avail->index % vq->num_descs;
-    vq->legacy.avail[desc_index].index++;
+    vq->legacy.avail->index++;
     vq->legacy.avail->ring[ring_index] = desc_index;
     return desc_index;
 }
