@@ -53,7 +53,8 @@ static void deferred_work(void) {
 
     // TODO:
     LIST_FOR_EACH(driver, &drivers, struct driver, next) {
-        if (!driver->device->dhcp_enabled
+        if (driver->device->dhcp_enabled
+            && !driver->device->dhcp_leased
             && driver->dhcp_discover_retires < 10
             && driver->last_dhcp_discover + 200 < sys_uptime()) {
             WARN("retrying DHCP discover...");
@@ -156,7 +157,6 @@ void main(void) {
                 if ((m.notifications.data & NOTIFY_TIMER) != 0) {
                     error_t err = timer_set(TIMER_INTERVAL);
                     ASSERT_OK(err);
-                    INFO("tcpip!");
                     uptime += TIMER_INTERVAL;
                 }
 
