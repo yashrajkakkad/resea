@@ -59,7 +59,8 @@ static void virtq_init(unsigned index) {
     virtq_select(index);
 
     size_t num_descs = virtq_num_descs();
-    ASSERT(num_descs < 1024 && "too large queue size");
+    DBG("num_descs = %d", num_descs);
+    ASSERT(num_descs <= 4096 && "too large queue size");
 
     offset_t avail_ring_off = sizeof(struct virtq_desc) * num_descs;
     size_t avail_ring_size = sizeof(uint16_t) * (3 + num_descs);
