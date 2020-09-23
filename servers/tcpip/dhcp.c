@@ -126,6 +126,7 @@ static void dhcp_process(struct device *device, mbuf_t payload) {
 
     switch (type) {
         case DHCP_TYPE_OFFER:
+            TRACE("DHCP OFFER %x", your_ipaddr);
             dhcp_transmit(device, DHCP_TYPE_REQUEST, your_ipaddr);
             break;
         case DHCP_TYPE_ACK:

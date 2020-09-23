@@ -73,6 +73,7 @@ device_t device_new(const char *name, transmit_fn_t transmit,
 void device_enable_dhcp(device_t device) {
     device->dhcp_enabled = true;
     device->dhcp_leased = false;
+    TRACE("DHCP DISCOVER....");
     dhcp_transmit(device, DHCP_TYPE_DISCOVER, IPV4_ADDR_UNSPECIFIED);
 }
 
