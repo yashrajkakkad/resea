@@ -68,9 +68,6 @@ static void virtq_init(unsigned index) {
         sizeof(uint16_t) * 3 + sizeof(struct virtq_used_elem) * num_descs;
     size_t virtq_size = used_ring_off + ALIGN_UP(used_ring_size, PAGE_SIZE);
 
-    INFO("avail_ring_off = %p", avail_ring_off);
-    INFO("used_ring_off = %p", used_ring_off);
-
     dma_t virtq_dma =
         dma_alloc(virtq_size, DMA_ALLOC_TO_DEVICE | DMA_ALLOC_FROM_DEVICE);
     memset(dma_buf(virtq_dma), 0, virtq_size);
