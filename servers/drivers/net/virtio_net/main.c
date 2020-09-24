@@ -36,7 +36,6 @@ void driver_handle_interrupt(void) {
         size_t len;
         while (virtio->virtq_pop_desc(rx_virtq, &index, &len) == OK) {
             struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, index);
-            HEXDUMP((const void *) buf->payload, len - sizeof(buf->header));
             receive((const void *) buf->payload, len - sizeof(buf->header));
             buf->header.num_buffers = 1;
             virtio->virtq_push_desc(rx_virtq, index);

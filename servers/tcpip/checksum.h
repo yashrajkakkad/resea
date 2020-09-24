@@ -23,25 +23,25 @@ static inline void checksum_update(checksum_t *c, const void *data,
     const uint16_t *words = data;
     for (size_t i = 0; i < len / 2; i++) {
         *c += words[i];
-        uint32_t x = *c;checksum_finish(&x); INFO("%x %x", x, words[i]);
+//        uint32_t x = *c;checksum_finish(&x); INFO("%x %x", x, words[i]);
     }
 
     // Handle the last byte if the length of the input is odd.
     if (len % 2 != 0) {
         *c += ((uint8_t *) data)[len - 1];
-        uint32_t x = *c;checksum_finish(&x); INFO("%x %x", x, ((uint8_t *) data)[len - 1]);
+//        uint32_t x = *c;checksum_finish(&x); INFO("%x %x", x, ((uint8_t *) data)[len - 1]);
     }
 }
 
 static inline void checksum_update_uint16(checksum_t *c, uint16_t data) {
     *c += data;
-        uint32_t x = *c;checksum_finish(&x); INFO("%x %x", x, data);
+//        uint32_t x = *c;checksum_finish(&x); INFO("%x %x", x, data);
 }
 
 static inline void checksum_update_uint32(checksum_t *c, uint32_t data) {
     *c += data & 0xffff;
     *c += data >> 16;
-        uint32_t x = *c;checksum_finish(&x); INFO("%x %x", x, data);
+//        uint32_t x = *c;checksum_finish(&x); INFO("%x %x", x, data);
 }
 
 static inline void checksum_update_mbuf(checksum_t *c, mbuf_t mbuf) {

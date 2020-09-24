@@ -57,7 +57,7 @@ void dhcp_transmit(device_t device, enum dhcp_type type,
     // Padding
     size_t padding_len = 4 - (mbuf_len(m) % 4) + 8;
     while (padding_len-- > 0) {
-        mbuf_append_bytes(m, &(uint8_t){DHCP_OPTION_END}, 1);
+        mbuf_append_bytes(m, &(uint8_t){0}, 1);
     }
 
     udp_sendto_mbuf(udp_sock,
