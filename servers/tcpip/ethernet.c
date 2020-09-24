@@ -44,6 +44,7 @@ void ethernet_receive(struct device *device, const void *pkt, size_t len) {
     }
 
     uint16_t type = ntoh16(header.type);
+    INFO("ETH_TYPE: %x", type);
     switch (type) {
         case ETHER_TYPE_ARP:
             arp_receive(device, m);
