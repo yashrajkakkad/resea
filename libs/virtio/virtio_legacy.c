@@ -45,7 +45,6 @@ static struct virtio_virtq *virtq_get(unsigned index) {
 
 /// Notifies the device that the queue contains a descriptor it needs to process.
 static void virtq_notify(struct virtio_virtq *vq) {
-    DBG("virtq_notify!");
     io_write16(bar0_io, REG_QUEUE_NOTIFY, vq->index);
 }
 
@@ -158,6 +157,7 @@ static void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
 /// Checks and enables features. It aborts if any of the features is not supported.
 static void negotiate_feature(uint64_t features) {
     // Abort if the device does not support features we need.
+    DBG("device features = %x", read_device_features());
     ASSERT((read_device_features() & features) == features);
     io_write32(bar0_io, REG_DRIVER_FEATS, features);
     write_device_status(read_device_status() | VIRTIO_STATUS_FEAT_OK);
@@ -213,6 +213,11 @@ error_t virtio_legacy_find_device(int device_type, struct virtio_ops **ops, uint
     // Read the IRQ vector.
     *irq = pci_config_read(pci_device, 0x3c, sizeof(uint8_t));
     *ops = &virtio_legacy_ops;
+
+    // Enable PCI bus master.
+    m.type = DM_PCI_ENABLE_BUS_MASTER_MSG;
+    m.dm_pci_enable_bus_master.handle = pci_device;
+    ASSERT_OK(ipc_call(dm_server, &m));
 
     // "3.1.1 Driver Requirements: Device Initialization"
     write_device_status(0); // Reset the device.

@@ -4,9 +4,12 @@
 #include "dhcp.h"
 #include <endian.h>
 #include "udp.h"
+#include "ipv4.h"
+#include "icmp.h"
 
 static udp_sock_t udp_sock;
 
+static int counter = 123;
 void dhcp_transmit(device_t device, enum dhcp_type type,
                    ipv4addr_t requested_addr) {
     struct dhcp_header header;
@@ -14,9 +17,9 @@ void dhcp_transmit(device_t device, enum dhcp_type type,
     header.hw_type = BOOTP_HWTYPE_ETHERNET;
     header.hw_len = MACADDR_LEN;
     header.hops = 0;
-    header.xid = hton32(0x1234abcd);
+    header.xid = hton32(0x1002008 + counter++);
     header.secs = 0;
-    header.flags = 0;
+    header.flags = hton16(0x8000);
     header.client_ipaddr = 0;
     header.your_ipaddr = 0;
     header.server_ipaddr = 0;
@@ -25,6 +28,14 @@ void dhcp_transmit(device_t device, enum dhcp_type type,
     header.magic = hton32(DHCP_MAGIC);
     memset(&header.unused, 0, sizeof(header.unused));
 
+    DBG("mac = %02x:%02x:%02x:%02x:%02x:%02x",
+    header.client_hwaddr[0],
+    header.client_hwaddr[1],
+    header.client_hwaddr[2],
+    header.client_hwaddr[3],
+    header.client_hwaddr[4],
+    header.client_hwaddr[5]
+    );
     mbuf_t m = mbuf_new(&header, sizeof(header));
 
     // DHCP Type Option
@@ -44,12 +55,14 @@ void dhcp_transmit(device_t device, enum dhcp_type type,
     }
 
     // DHCP Parameter Request List Option
+    /*
     struct dhcp_params_option params_opt;
     params_opt.params[0] = DHCP_OPTION_NETMASK;
     params_opt.params[1] = DHCP_OPTION_ROUTER;
     mbuf_append_bytes(
         m, &(uint8_t[2]){DHCP_OPTION_PARAM_LIST, sizeof(params_opt)}, 2);
     mbuf_append_bytes(m, &params_opt, sizeof(params_opt));
+    */
 
     // DHCP End Option
     mbuf_append_bytes(m, &(uint8_t){DHCP_OPTION_END}, 1);
@@ -145,6 +158,8 @@ static void dhcp_process(struct device *device, mbuf_t payload) {
                 device, &(ipaddr_t){.type = IP_TYPE_V4, .v4 = your_ipaddr},
                 &(ipaddr_t){.type = IP_TYPE_V4, .v4 = netmask},
                 &(ipaddr_t){.type = IP_TYPE_V4, .v4 = gateway});
+
+            // icmp_send_echo_request(&(ipaddr_t){.type = IP_TYPE_V4, .v4 = gateway});
             break;
         default:
             WARN("ignoring a DHCP message (dhcp_type=%d)", type);

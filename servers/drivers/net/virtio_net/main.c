@@ -36,9 +36,8 @@ void driver_handle_interrupt(void) {
         size_t len;
         while (virtio->virtq_pop_desc(rx_virtq, &index, &len) == OK) {
             struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, index);
-            HEXDUMP((const void *) buf->payload, len - sizeof(buf->header));
             receive((const void *) buf->payload, len - sizeof(buf->header));
-            buf->header.num_buffers = 1;
+//            buf->header.num_buffers = 1;
             virtio->virtq_push_desc(rx_virtq, index);
         }
 
@@ -66,6 +65,7 @@ static void transmit(void) {
     size_t len = m.net_tx.payload_len;
     int index = virtio->virtq_alloc(tx_virtq, sizeof(struct virtio_net_header) + len);
     if (index < 0) {
+        WARN("failed to alloc a desc for TX");
         return;
     }
 
@@ -77,8 +77,10 @@ static void transmit(void) {
     buf->header.gso_size = 0;
     buf->header.checksum_start = 0;
     buf->header.checksum_offset = 0;
-    buf->header.num_buffers = 0;
+//    buf->header.num_buffers = 0;
     memcpy((uint8_t *) &buf->payload, m.net_tx.payload, len);
+    TRACE("TX -----------------------------");
+    HEXDUMP(buf->payload, len);
 
     // Kick the device.
     virtio->virtq_notify(tx_virtq);
@@ -91,7 +93,7 @@ void main(void) {
     // Look for and initialize a virtio-net device.
     uint8_t irq;
     ASSERT_OK(virtio_find_device(VIRTIO_DEVICE_NET, &virtio, &irq));
-    virtio->negotiate_feature(VIRTIO_NET_F_MAC | VIRTIO_NET_F_MRG_RXBUF | VIRTIO_NET_F_STATUS);
+    virtio->negotiate_feature(VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS);
 
     virtio->virtq_init(VIRTIO_NET_QUEUE_RX);
     virtio->virtq_init(VIRTIO_NET_QUEUE_TX);
@@ -105,7 +107,7 @@ void main(void) {
     virtio->virtq_allocate_buffers(rx_virtq, sizeof(struct virtio_net_buffer), true);
     for (int i = 0; i < rx_virtq->num_descs; i++) {
         struct virtio_net_buffer *buf = virtq_net_buffer(rx_virtq, i);
-        buf->header.num_buffers = 1;
+//        buf->header.num_buffers = 1;
     }
 
     // Start listening for interrupts.

@@ -65,6 +65,9 @@ static void deferred_work(void) {
     }
 }
 
+#include "ipv4.h"
+#include "icmp.h"
+
 static void register_device(task_t driver_task, macaddr_t *macaddr) {
     if (next_driver_id > 9) {
         WARN("too many devices");
@@ -91,7 +94,16 @@ static void register_device(task_t driver_task, macaddr_t *macaddr) {
     driver->dhcp_discover_retires = 0;
     driver->last_dhcp_discover = sys_uptime();
 
-    device_enable_dhcp(device);
+    INFO("registering the device.....");
+            device_set_ip_addrs(
+                device, &(ipaddr_t){.type = IP_TYPE_V4, .v4 = 0x0a920004},
+                &(ipaddr_t){.type = IP_TYPE_V4, .v4 = 0xffffffff},
+                &(ipaddr_t){.type = IP_TYPE_V4, .v4 = 0x0a920001});
+        arp_register_macaddr(device, 0x0a920001, (uint8_t *) &(uint8_t[6]){0x42, 0x01, 0x0a, 0x92, 0x00, 0x01});
+        arp_register_macaddr(device, 0x0a92000a, (uint8_t *) &(uint8_t[6]){0x42, 0x01, 0x0a, 0x92, 0x00, 0x0a});
+       icmp_send_echo_request(&(ipaddr_t){.type = IP_TYPE_V4, .v4 = 0x0a92000a});
+
+//    device_enable_dhcp(device);
     INFO("registered new net device '%s'", name);
 }
 

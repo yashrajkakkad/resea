@@ -20,11 +20,11 @@ struct virtio_net_config {
 struct virtio_net_header {
     uint8_t flags;
     uint8_t gso_type;
-    uint16_t len;
+    uint16_t hdr_len;
     uint16_t gso_size;
     uint16_t checksum_start;
     uint16_t checksum_offset;
-    uint16_t num_buffers;
+//    uint16_t num_buffers;
 } __packed;
 
 struct virtio_net_buffer {

@@ -420,6 +420,11 @@ error_t virtio_modern_find_device(int device_type, struct virtio_ops **ops, uint
     *irq = pci_config_read(pci_device, 0x3c, sizeof(uint8_t));
     *ops = &virtio_modern_ops;
 
+    // Enable PCI bus master.
+    m.type = DM_PCI_ENABLE_BUS_MASTER_MSG;
+    m.dm_pci_enable_bus_master.handle = pci_device;
+    ASSERT_OK(ipc_call(dm_server, &m));
+
     // "3.1.1 Driver Requirements: Device Initialization"
     write_device_status(0); // Reset the device.
     write_device_status(read_device_status() | VIRTIO_STATUS_ACK);

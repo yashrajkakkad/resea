@@ -33,6 +33,7 @@ void ethernet_transmit(struct device *device, enum ether_type type,
     mbuf_prepend(payload, pkt);
 
     // Transmit the packet. `pkt` is freed in the callback.
+    OOPS("link_transmit....");
     device->link_transmit(device, pkt);
 }
 
