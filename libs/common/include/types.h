@@ -155,4 +155,6 @@ enum exception_type {
 typedef uintmax_t uintptr_t;
 typedef intmax_t ptrdiff_t;
 
+#define mb()    __asm__ __volatile__("mfence");
+
 #endif

@@ -55,14 +55,12 @@ void dhcp_transmit(device_t device, enum dhcp_type type,
     }
 
     // DHCP Parameter Request List Option
-    /*
     struct dhcp_params_option params_opt;
     params_opt.params[0] = DHCP_OPTION_NETMASK;
     params_opt.params[1] = DHCP_OPTION_ROUTER;
     mbuf_append_bytes(
         m, &(uint8_t[2]){DHCP_OPTION_PARAM_LIST, sizeof(params_opt)}, 2);
     mbuf_append_bytes(m, &params_opt, sizeof(params_opt));
-    */
 
     // DHCP End Option
     mbuf_append_bytes(m, &(uint8_t){DHCP_OPTION_END}, 1);
@@ -106,9 +104,18 @@ static void dhcp_process(struct device *device, mbuf_t payload) {
             break;
         }
 
+#define CHECK_OPTION_LEN(option_type, option_len, opt_struct)                  \
+    if (option_len != sizeof(opt_struct)) {                                    \
+        WARN_DBG("invalid dhcp option len (%d) for option type %d",            \
+            option_len, option_type);                                          \
+        return;                                                                \
+    }
+
+        TRACE("DHCP option: type=%d, len=%d", option_type, option_len);
         switch (option_type) {
             case DHCP_OPTION_DHCP_TYPE: {
                 struct dhcp_type_option opt;
+                CHECK_OPTION_LEN(option_type, option_len, opt);
                 if (mbuf_read(&payload, &opt, sizeof(opt)) != sizeof(opt)) {
                     break;
                 }
@@ -118,6 +125,7 @@ static void dhcp_process(struct device *device, mbuf_t payload) {
             }
             case DHCP_OPTION_NETMASK: {
                 struct dhcp_netmask_option opt;
+                CHECK_OPTION_LEN(option_type, option_len, opt);
                 if (mbuf_read(&payload, &opt, sizeof(opt)) != sizeof(opt)) {
                     break;
                 }
@@ -127,6 +135,7 @@ static void dhcp_process(struct device *device, mbuf_t payload) {
             }
             case DHCP_OPTION_ROUTER: {
                 struct dhcp_router_option opt;
+                CHECK_OPTION_LEN(option_type, option_len, opt);
                 if (mbuf_read(&payload, &opt, sizeof(opt)) != sizeof(opt)) {
                     break;
                 }
@@ -134,6 +143,8 @@ static void dhcp_process(struct device *device, mbuf_t payload) {
                 gateway = ntoh32(opt.router);
                 break;
             }
+            default:
+                mbuf_discard(&payload, option_len);
         }
     }
 
@@ -143,6 +154,7 @@ static void dhcp_process(struct device *device, mbuf_t payload) {
             dhcp_transmit(device, DHCP_TYPE_REQUEST, your_ipaddr);
             break;
         case DHCP_TYPE_ACK:
+            INFO("ACK: netnask=%pI4, gateway=%pI4", netmask, gateway);
             if (netmask == IPV4_ADDR_UNSPECIFIED
                 || gateway == IPV4_ADDR_UNSPECIFIED) {
                 WARN(
@@ -158,8 +170,6 @@ static void dhcp_process(struct device *device, mbuf_t payload) {
                 device, &(ipaddr_t){.type = IP_TYPE_V4, .v4 = your_ipaddr},
                 &(ipaddr_t){.type = IP_TYPE_V4, .v4 = netmask},
                 &(ipaddr_t){.type = IP_TYPE_V4, .v4 = gateway});
-
-            // icmp_send_echo_request(&(ipaddr_t){.type = IP_TYPE_V4, .v4 = gateway});
             break;
         default:
             WARN("ignoring a DHCP message (dhcp_type=%d)", type);

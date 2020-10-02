@@ -45,6 +45,7 @@ static struct virtio_virtq *virtq_get(unsigned index) {
 
 /// Notifies the device that the queue contains a descriptor it needs to process.
 static void virtq_notify(struct virtio_virtq *vq) {
+    mb();
     io_write16(bar0_io, REG_QUEUE_NOTIFY, vq->index);
 }
 
@@ -104,10 +105,14 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
     desc->next = 0; // TODO:
 
     vq->legacy.next_avail_index++;
-    int ring_index = vq->legacy.avail->index % vq->num_descs;
-    vq->legacy.avail->index++;
-    vq->legacy.avail->ring[ring_index] = desc_index;
     return desc_index;
+}
+
+static void virtq_pop_desc2(struct virtio_virtq *vq, int desc_index) {
+//    int ring_index = vq->legacy.avail->index % vq->num_descs;
+//    vq->legacy.avail->ring[ring_index] = desc_index;
+//    mb();
+//    vq->legacy.avail->index++;
 }
 
 /// Returns the next descriptor which is already used by the device. If the
@@ -129,6 +134,9 @@ static error_t virtq_pop_desc(struct virtio_virtq *vq, int *index, size_t *len) 
 /// Makes the descriptor available for input from the device.
 static void virtq_push_desc(struct virtio_virtq *vq, int index) {
     vq->legacy.avail->ring[vq->legacy.avail->index++ % vq->num_descs] = index;
+    mb();
+    vq->legacy.avail->index++;
+    virtq_notify(vq);
 }
 
 /// Allocates queue buffers. If `writable` is true, the buffers are initialized

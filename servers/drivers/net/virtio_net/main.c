@@ -83,7 +83,7 @@ static void transmit(void) {
     HEXDUMP(buf->payload, len);
 
     // Kick the device.
-    virtio->virtq_notify(tx_virtq);
+    virtio->virtq_push_desc(tx_virtq, index);
     free((void *) m.net_tx.payload);
 }
 

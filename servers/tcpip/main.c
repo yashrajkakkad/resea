@@ -55,7 +55,7 @@ static void deferred_work(void) {
     LIST_FOR_EACH(driver, &drivers, struct driver, next) {
         if (driver->device->dhcp_enabled
             && !driver->device->dhcp_leased
-            && driver->dhcp_discover_retires < 10
+            && driver->dhcp_discover_retires < 3
             && driver->last_dhcp_discover + 200 < sys_uptime()) {
             WARN("retrying DHCP discover...");
             dhcp_transmit(driver->device, DHCP_TYPE_DISCOVER, IPV4_ADDR_UNSPECIFIED);
@@ -103,7 +103,7 @@ static void register_device(task_t driver_task, macaddr_t *macaddr) {
         arp_register_macaddr(device, 0x0a92000a, (uint8_t *) &(uint8_t[6]){0x42, 0x01, 0x0a, 0x92, 0x00, 0x0a});
        icmp_send_echo_request(&(ipaddr_t){.type = IP_TYPE_V4, .v4 = 0x0a92000a});
 
-//    device_enable_dhcp(device);
+    device_enable_dhcp(device);
     INFO("registered new net device '%s'", name);
 }
 
