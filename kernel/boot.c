@@ -75,6 +75,7 @@ static void map_bootelf(struct bootelf_header *header, struct task *task) {
             if (vaddr == paddr) {
                 continue;
             }
+            INFO();
             memcpy((void *) vaddr, (void *) paddr, m->num_pages * PAGE_SIZE);
         }
 #else
@@ -116,6 +117,7 @@ __noreturn void kmain(void) {
     // Create the first userland task.
     struct task *task = task_lookup_unchecked(INIT_TASK);
     ASSERT(task);
+    DBG("bootelf->entry = %p", bootelf->entry);
     error_t err = task_create(task, name, bootelf->entry, NULL, TASK_ALL_CAPS);
     ASSERT_OK(err);
     map_bootelf(bootelf, task);

@@ -6,6 +6,7 @@
 #include <machine/peripherals.h>
 
 void arch_idle(void) {
+    task_switch();
     while (true) {
         __asm__ __volatile__("wfi");
     }

@@ -21,7 +21,7 @@ static void init_stack(struct task *task, vaddr_t pc) {
     *--sp = 0; // r2
     *--sp = 0; // r1
     *--sp = 0; // r0
-    *--sp = 0xfffffff9; // return from exception
+    *--sp = 0xfffffff1; // return from exception
 
     *--sp = (vaddr_t) arm_start_task; // Task starts here.
     int num_zeroed_regs = 8; // r4-r11
@@ -29,6 +29,7 @@ static void init_stack(struct task *task, vaddr_t pc) {
         *--sp = 0;
     }
 
+    INFO("#%d, sp=%p, pc=%p", task->tid, sp, pc);
     task->arch.stack = (vaddr_t) sp;
 }
 
@@ -44,5 +45,6 @@ void arch_task_destroy(struct task *task) {
 void arm_task_switch(vaddr_t *prev_sp, vaddr_t next_sp);
 
 void arch_task_switch(struct task *prev, struct task *next) {
+    DBG("switch to #%d, sp=%x", next->tid, next->arch.stack);
     arm_task_switch(&prev->arch.stack, next->arch.stack);
 }
