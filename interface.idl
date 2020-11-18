@@ -55,5 +55,9 @@ namespace net {
     oneway rx(payload: bytes);
     oneway tx(payload: bytes);
 }
+namespace shm{
+    rpc create(size:size) -> (shm_id:int);
+    rpc map(shm_id:int) -> (vaddr:vaddr);
+}
 
 include "servers/*/interface.idl";

@@ -1,6 +1,8 @@
-#include "shm.h"
+#include <resea/task.h>
 #include <string.h>
 #include "pages.h"
+#include "shm.h"
+#include "task.h"
 
 int create(size_t size) {
     int i = 0;
@@ -17,15 +19,18 @@ int create(size_t size) {
     return i;
 }
 
-int destroy(int shm_id) {
+int close(int shm_id) {
     int i = 0;
+    // unallocate p_addr
     for (; i < NUM_SHARED_MEMS_MAX; i++) {
         if (shared_mems[i].shm_id == shm_id)
-            bzero(&shared_mems[i], sizeof(struct shm));
+            bzero(&shared_mems[i], sizeof(struct shm_t));
+        return 0;
     }
+    return -1;
 }
 
-struct shm* stat(int shm_id) {
+struct shm_t* stat(int shm_id) {
     int i = 0;
     for (; i < NUM_SHARED_MEMS_MAX; i++) {
         if (shared_mems[i].shm_id == shm_id)
@@ -34,13 +39,14 @@ struct shm* stat(int shm_id) {
     return NULL;
 }
 vaddr_t map(int shm_id) {
-    struct shm* s = stat(shm_id);
+    struct shm_t* s = stat(shm_id);
     vaddr_t vaddr = alloc_virt_pages(CURRENT, s->len);
-    // unsure abt flags and overwrite
+    // not sure abt flags and overwrite
     map_page(CURRENT, vaddr, s->paddr, 0, true);
 
     return vaddr;
 }
 
-int unmap(int shm_id) {
+int unmap(vaddr_t vaddr) {
+    return vm_unmap(CURRENT, vaddr)
 }

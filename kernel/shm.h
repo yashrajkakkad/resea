@@ -2,8 +2,7 @@
 #define __SHM_H__
 
 #include <types.h>
-struct shm
-{
+struct shm_t {
     bool inuse;
     int shm_id;
     paddr_t paddr;
@@ -17,4 +16,5 @@ int create(size_t size);
 vaddr_t map(int shm_id);
 int unmap(int shm_id);
 int close(int shm_id);
+struct shm* stat(int shm_id);
 #endif
