@@ -1,10 +1,8 @@
-#include <resea/task.h>
 #include <string.h>
-#include "pages.h"
+#include "ipc.h"
 #include "shm.h"
-#include "task.h"
 
-int create(size_t size) {
+int shm_create(size_t size, paddr_t paddr) {
     int i = 0;
     for (; i < NUM_SHARED_MEMS_MAX && shared_mems[i].inuse; i++)
         ;
@@ -15,11 +13,18 @@ int create(size_t size) {
     shared_mems[i].inuse = true;
     shared_mems[i].shm_id = i;
     shared_mems[i].len = size;
-    shared_mems[i].paddr = pages_alloc(size);
+    // // ipc vm to allocate
+    // task_t vm = ipc_lookup("vm");
+    // struct message m;
+    // m.type = VM_ALLOC_PAGES_MSG;
+    // m.vm_alloc_pages.num_pages = size;
+    // m.vm_alloc_pages.paddr = NULL;
+    // ASSERT_OK(ipc_call(vm, &m));
+    shared_mems[i].paddr = paddr;
     return i;
 }
 
-int close(int shm_id) {
+int shm_close(int shm_id) {
     int i = 0;
     // unallocate p_addr
     for (; i < NUM_SHARED_MEMS_MAX; i++) {
@@ -30,7 +35,7 @@ int close(int shm_id) {
     return -1;
 }
 
-struct shm_t* stat(int shm_id) {
+struct shm_t* shm_stat(int shm_id) {
     int i = 0;
     for (; i < NUM_SHARED_MEMS_MAX; i++) {
         if (shared_mems[i].shm_id == shm_id)
@@ -38,15 +43,11 @@ struct shm_t* stat(int shm_id) {
     }
     return NULL;
 }
-vaddr_t map(int shm_id) {
-    struct shm_t* s = stat(shm_id);
-    vaddr_t vaddr = alloc_virt_pages(CURRENT, s->len);
+vaddr_t shm_map(task_t tid, int shm_id) {
+    // struct shm_t* s = stat(shm_id);
+    // vaddr_t vaddr = alloc_virt_pages(tid, s->len);
     // not sure abt flags and overwrite
-    map_page(CURRENT, vaddr, s->paddr, 0, true);
+    // map_page(tid, vaddr, s->paddr, 0, true);
 
-    return vaddr;
-}
-
-int unmap(vaddr_t vaddr) {
-    return vm_unmap(CURRENT, vaddr)
+    return 0;
 }

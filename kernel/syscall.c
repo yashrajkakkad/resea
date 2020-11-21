@@ -5,6 +5,7 @@
 #include "ipc.h"
 #include "kdebug.h"
 #include "printk.h"
+#include "shm.h"
 #include "syscall.h"
 #include "task.h"
 
@@ -167,7 +168,7 @@ static paddr_t resolve_paddr(vaddr_t vaddr) {
 }
 
 static error_t sys_vm_map(task_t tid, vaddr_t vaddr, vaddr_t src, vaddr_t kpage,
-                       unsigned flags) {
+                          unsigned flags) {
     if (!CAPABLE(CURRENT, CAP_MAP)) {
         return ERR_NOT_PERMITTED;
     }
@@ -221,7 +222,13 @@ static error_t sys_vm_unmap(task_t tid, vaddr_t vaddr) {
 
     return vm_unmap(task, vaddr);
 }
-
+// shared memory sys_call
+static vaddr_t sys_shm_map(int shm_id) {
+    return shm_map(CURRENT->tid, shm_id);
+}
+static error_t sys_shm_unmap(vaddr_t vaddr) {
+    return sys_vm_unmap(CURRENT->tid, vaddr);
+}
 /// Writes log messages into the arch's console (typically a serial port) and
 /// the kernel log buffer.
 static error_t sys_console_write(__user const char *buf, size_t buf_len) {
@@ -343,12 +350,22 @@ long handle_syscall(int n, long a1, long a2, long a3, long a4, long a5) {
             ret = sys_irq_release(a1);
             break;
         case SYS_KDEBUG:
-            ret = sys_kdebug((__user const char *) a1, a2, (__user char *)  a3,
+            ret = sys_kdebug((__user const char *) a1, a2, (__user char *) a3,
                              a4);
             break;
         case SYS_NOP:
             ret = OK;
             break;
+        case SYS_SHM_CREATE:
+            ret = shm_create((int) a1, a2);
+        case SYS_SHM_CLOSE:
+            ret = shm_close((int) a1);
+        case SYS_SHM_MAP:
+            ret = sys_shm_map((int) a1);
+        case SYS_SHM_UNMAP:
+            ret = sys_shm_unmap((vaddr_t) a1);
+        case SYS_SHM_STAT:
+            ret = (long) shm_stat((int) a1);
         default:
             ret = ERR_INVALID_ARG;
     }
@@ -375,8 +392,7 @@ void abi_emu_hook(trap_frame_t *frame, enum abi_hook_type type) {
 
     // Check if the reply is valid.
     if (m.type != ABI_HOOK_REPLY_MSG) {
-        WARN_DBG("%s: invalid abi hook reply (type=%d)",
-                 CURRENT->name, m.type);
+        WARN_DBG("%s: invalid abi hook reply (type=%d)", CURRENT->name, m.type);
         task_exit(EXP_INVALID_MSG_FROM_PAGER);
     }
 

@@ -10,11 +10,10 @@ struct shm_t {
 };
 
 #define NUM_SHARED_MEMS_MAX 32
-static struct shm shared_mems[NUM_SHARED_MEMS_MAX];
+static struct shm_t shared_mems[NUM_SHARED_MEMS_MAX];
 
-int create(size_t size);
-vaddr_t map(int shm_id);
-int unmap(int shm_id);
-int close(int shm_id);
-struct shm* stat(int shm_id);
+int shm_create(size_t size, paddr_t paddr);
+vaddr_t shm_map(task_t tid, int shm_id);
+int shm_close(int shm_id);
+struct shm_t* shm_stat(int shm_id);
 #endif

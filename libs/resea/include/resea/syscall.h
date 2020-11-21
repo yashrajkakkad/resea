@@ -66,7 +66,22 @@ static inline int sys_console_read(char *buf, size_t len) {
 
 static inline error_t sys_kdebug(const char *cmd, size_t cmd_len, char *buf,
                                  size_t buf_len) {
-    return syscall(SYS_KDEBUG, (uintptr_t) cmd, cmd_len, (uintptr_t) buf, buf_len, 0);
+    return syscall(SYS_KDEBUG, (uintptr_t) cmd, cmd_len, (uintptr_t) buf,
+                   buf_len, 0);
 }
-
+static inline int sys_shm_create(size_t size, paddr_t paddr) {
+    return syscall(SYS_SHM_CREATE, size, paddr, 0, 0, 0);
+}
+static inline int sys_shm_close(int shm_id) {
+    return syscall(SYS_SHM_CLOSE, shm_id, 0, 0, 0, 0);
+}
+static inline void *sys_shm_stat(int shm_id) {
+    return (void *) syscall(SYS_SHM_STAT, shm_id, 0, 0, 0, 0);
+}
+static inline int sys_shm_map(int shm_id) {
+    return syscall(SYS_SHM_MAP, shm_id, 0, 0, 0, 0);
+}
+static inline int sys_shm_unmap(vaddr_t vaddr) {
+    return syscall(SYS_SHM_UNMAP, vaddr, 0, 0, 0, 0);
+}
 #endif
