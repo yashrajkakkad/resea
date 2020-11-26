@@ -116,6 +116,13 @@ CFLAGS += -DVERSION='"$(VERSION)"'
 CFLAGS += -DBOOTELF_PATH='"$(boot_elf)"'
 CFLAGS += -DBOOTFS_PATH='"$(bootfs_bin)"'
 CFLAGS += -DAUTOSTARTS='"$(autostarts)"'
+CFLAGS += --target=x86_64-pc-linux-elf
+CFLAGS += -fsanitize=undefined,kernel-address
+CFLAGS += -mllvm -asan-instrumentation-with-call-threshold=0
+CFLAGS += -mllvm -asan-globals=false
+CFLAGS += -mllvm -asan-stack=false
+CFLAGS += -mllvm -asan-use-after-return=false
+CFLAGS += -mllvm -asan-use-after-scope=false
 
 CARGOFLAGS +=-Z build-std=core --quiet
 RUSTFLAGS += -C lto -Z emit-stack-sizes -Z external-macro-backtrace
