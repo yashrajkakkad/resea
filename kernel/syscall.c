@@ -358,14 +358,19 @@ long handle_syscall(int n, long a1, long a2, long a3, long a4, long a5) {
             break;
         case SYS_SHM_CREATE:
             ret = shm_create((int) a1, a2);
+            break;
         case SYS_SHM_CLOSE:
             ret = shm_close((int) a1);
+            break;
         case SYS_SHM_MAP:
             ret = sys_shm_map((int) a1);
+            break;
         case SYS_SHM_UNMAP:
             ret = sys_shm_unmap((vaddr_t) a1);
+            break;
         case SYS_SHM_STAT:
             ret = (long) shm_stat((int) a1);
+            break;
         default:
             ret = ERR_INVALID_ARG;
     }

@@ -1,5 +1,4 @@
 #include <string.h>
-#include "ipc.h"
 #include "shm.h"
 
 int shm_create(size_t size, paddr_t paddr) {
@@ -30,7 +29,7 @@ int shm_close(int shm_id) {
     for (; i < NUM_SHARED_MEMS_MAX; i++) {
         if (shared_mems[i].shm_id == shm_id)
             bzero(&shared_mems[i], sizeof(struct shm_t));
-        return 0;
+        return i;
     }
     return -1;
 }
@@ -38,8 +37,12 @@ int shm_close(int shm_id) {
 struct shm_t* shm_stat(int shm_id) {
     int i = 0;
     for (; i < NUM_SHARED_MEMS_MAX; i++) {
-        if (shared_mems[i].shm_id == shm_id)
+        if (shared_mems[i].shm_id == shm_id) {
+            if (shared_mems[i].inuse == false) {
+                return NULL;
+            }
             return &shared_mems[i];
+        }
     }
     return NULL;
 }

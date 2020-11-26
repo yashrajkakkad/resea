@@ -1,15 +1,17 @@
 #include <resea/ipc.h>
+#include <resea/printf.h>
 #include <resea/shm.h>
 #include <resea/syscall.h>
 
 int shm_create(size_t size) {
     // // ipc vm to allocate
-    task_t vm = ipc_lookup("vm");
     struct message m;
     m.type = VM_ALLOC_PAGES_MSG;
     m.vm_alloc_pages.num_pages = size;
-    m.vm_alloc_pages.paddr = NULL;
-    ASSERT_OK(ipc_call(vm, &m));
+    m.vm_alloc_pages.paddr = 0;
+    // Assert_OK ipc_call
+    error_t err = ipc_call(INIT_TASK, &m);
+    ASSERT_OK(err);
     paddr_t paddr = m.vm_alloc_pages_reply.paddr;
     return sys_shm_create(size, paddr);
 }

@@ -1,4 +1,4 @@
-oneway notifications(data: notifications);
+oneway notifications(data : notifications);
 oneway async();
 oneway invalid();
 
@@ -6,58 +6,65 @@ enum abi_hook_type {
     INITIAL = 1,
     SYSCALL = 2,
 };
-oneway exception(task: task, exception: exception_type);
-rpc page_fault(task: task, vaddr: vaddr, ip: vaddr, fault: uint) -> ();
-rpc abi_hook(task: task, type: int, frame: trap_frame) -> (frame: trap_frame);
+oneway exception(task : task, exception : exception_type);
+rpc page_fault(task : task, vaddr : vaddr, ip : vaddr, fault : uint)->();
+rpc abi_hook(task : task, type : int, frame : trap_frame)->(frame : trap_frame);
 
 namespace benchmark {
-    rpc nop(value: int) -> (value: int);
-    rpc nop_with_ool(data: bytes) -> (data: bytes);
-}
+rpc nop(value : int)->(value : int);
+rpc nop_with_ool(data : bytes)->(data : bytes);
+}  // namespace benchmark
 
 namespace vm {
-    rpc alloc_pages(num_pages: size, paddr: paddr) -> (vaddr: vaddr, paddr: paddr);
+rpc alloc_pages(num_pages
+                : size, paddr
+                : paddr)
+    ->(vaddr
+       : vaddr, paddr
+       : paddr);
 }
 
 namespace discovery {
-    rpc serve(name: str) -> ();
-    rpc lookup(name: str) -> (task: task);
-}
+rpc serve(name : str)->();
+rpc lookup(name : str)->(task : task);
+}  // namespace discovery
 
 namespace task {
-    rpc launch(name_and_cmdline: str) -> (task: task);
-    rpc watch(task: task) -> ();
-    rpc unwatch(task: task) -> ();
-    async oneway exited(task: task);
-}
+rpc launch(name_and_cmdline : str)->(task : task);
+rpc watch(task : task)->();
+rpc unwatch(task : task)->();
+async oneway exited(task : task);
+}  // namespace task
 
 namespace ool {
-    rpc recv(addr: vaddr, len: size)-> ();
-    rpc send(dst: task, addr: vaddr, len: size)-> (id: vaddr);
-    rpc verify(src: task, id: vaddr, len: size)-> (received_at: vaddr);
-}
+rpc recv(addr : vaddr, len : size)->();
+rpc send(dst : task, addr : vaddr, len : size)->(id : vaddr);
+rpc verify(src : task, id : vaddr, len : size)->(received_at : vaddr);
+}  // namespace ool
 
 namespace fs {
-    rpc open(path: str) -> (handle: handle);
-    rpc create(path: str, exist_ok: bool) -> (handle: handle);
-    rpc close(handle: handle) -> ();
-    rpc read(handle: handle, offset: offset, len: size) -> (data: bytes);
-    rpc write(handle: handle, offset: offset, data: bytes) -> ();
-    rpc stat(path: str) -> (size: size);
-}
+rpc open(path : str)->(handle : handle);
+rpc create(path : str, exist_ok : bool)->(handle : handle);
+rpc close(handle : handle)->();
+rpc read(handle : handle, offset : offset, len : size)->(data : bytes);
+rpc write(handle : handle, offset : offset, data : bytes)->();
+rpc stat(path : str)->(size : size);
+}  // namespace fs
 
 namespace blk {
-    rpc read(sector: offset, num_sectors: size) -> (data: bytes);
-    rpc write(sector: offset, data: bytes) -> ();
-}
+rpc read(sector : offset, num_sectors : size)->(data : bytes);
+rpc write(sector : offset, data : bytes)->();
+}  // namespace blk
 
 namespace net {
-    oneway rx(payload: bytes);
-    oneway tx(payload: bytes);
-}
-namespace shm{
-    rpc create(size:size) -> (shm_id:int);
-    rpc map(shm_id:int) -> (vaddr:vaddr);
-}
+oneway rx(payload : bytes);
+oneway tx(payload : bytes);
+}  // namespace net
+namespace shm {
+rpc shm_create(size : size)->(shm_id : int);
+// rpc shm_stat(shm_id : int)->(smh : shm_t);
+// rpc map(shm_id : int)->(vaddr : vaddr);
+
+}  // namespace shm
 
 include "servers/*/interface.idl";
