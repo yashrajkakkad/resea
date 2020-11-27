@@ -324,7 +324,8 @@ error_t virtio_modern_find_device(int device_type, struct virtio_ops **ops, uint
     struct message m;
     m.type = DM_ATTACH_PCI_DEVICE_MSG;
     m.dm_attach_pci_device.vendor_id = 0x1af4;
-    m.dm_attach_pci_device.device_id = 0x1000;
+    // m.dm_attach_pci_device.device_id = 0x1000;
+    m.dm_attach_pci_device.device_id = 0x1001;
     ASSERT_OK(ipc_call(dm_server, &m));
     handle_t pci_device = m.dm_attach_pci_device_reply.handle;
 
