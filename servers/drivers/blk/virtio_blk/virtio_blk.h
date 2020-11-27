@@ -23,13 +23,13 @@ struct virtio_blk_config {
     uint32_t capacity_hi;
     uint32_t size_max;
     uint32_t seg_max;
-    struct virtio_blk_geometry {
+    __packed struct virtio_blk_geometry {
             uint16_t cylinders;
             uint8_t heads;
             uint8_t sectors;
-    } __packed;
+    } geometry;
     uint32_t blk_size;
-    struct virtio_blk_topology {
+    __packed struct virtio_blk_topology {
             // # of logical blocks per physical block (log2)
             uint8_t physical_block_exp;
             // offset of first aligned logical block
@@ -38,7 +38,7 @@ struct virtio_blk_config {
             uint16_t min_io_size;
             // optimal (suggested maximum) I/O size in blocks
             uint32_t opt_io_size;
-    } __packed;
+    } topology;
     uint8_t writeback;
     uint8_t unused0[3];
     uint32_t max_discard_sectors;
