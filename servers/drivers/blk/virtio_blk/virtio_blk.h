@@ -11,12 +11,18 @@
 #define VIRTIO_BLK_F_FLUSH        (1 << 9)
 #define VIRTIO_BLK_F_TOPOLOGY     (1 << 10)
 #define VIRTIO_BLK_F_CONFIG_WCE   (1 << 11)
+#define VIRTIO_BLK_F_DISCARD      (1 << 13)
+#define VIRTIO_BLK_F_WRITE_ZEROES (1 << 14)
+
 #define VIRTIO_BLK_T_IN           0
 #define VIRTIO_BLK_T_OUT          1
 #define VIRTIO_BLK_T_FLUSH        4
-#define VIRTIO_BLK_S_OK           0
-#define VIRTIO_BLK_S_IOERR        1
-#define VIRTIO_BLK_S_UNSUPP       2
+#define VIRTIO_BLK_T_DISCARD      11
+#define VIRTIO_BLK_T_WRITE_ZEROES 13
+
+#define VIRTIO_BLK_S_OK     0
+#define VIRTIO_BLK_S_IOERR  1
+#define VIRTIO_BLK_S_UNSUPP 2
 
 struct virtio_blk_config {
     uint32_t capacity_lo;
@@ -48,6 +54,18 @@ struct virtio_blk_config {
     uint32_t max_write_zeroes_seg;
     uint8_t write_zeroes_may_unmap;
     uint8_t unused1[3];
+} __packed;
+
+struct virtio_blk_req_header {
+    uint32_t type;
+    uint32_t reserved;
+    uint64_t sector;
+    // uint8_t status;
+} __packed;
+
+struct virtio_blk_req_buffer {
+    struct virtio_blk_req_header header;
+    uint8_t data[512];
 } __packed;
 
 #endif
