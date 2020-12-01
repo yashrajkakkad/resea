@@ -1,8 +1,5 @@
 #include<kasan.h>
 
-// Stores the current state of the each memory bytes.
-#define NUM_BYTES 512*1024
-uint8_t shadow[NUM_BYTES];  /* .bss size + .data size + heap size */
 
 #ifdef KERNEL
 // We don't support KASan in kernel space for now.
@@ -15,3 +12,14 @@ void __asan_load8_noabort(vaddr_t addr) {
     }
 }
 #endif
+
+// void encode_shadow(void *addr, size_t len)
+// {
+//     if(len % 8)
+//     {
+//         PANIC("ASan: Length specified for shadow is not a multiple of 8");
+//     }
+//     shadow[(paddr_t)addr>>3] = 0;
+// }
+
+// void shadow_chunk()

@@ -1,7 +1,9 @@
 #include <list.h>
 #include <resea/malloc.h>
 #include <resea/printf.h>
+#include <kasan.h>
 #include <string.h>
+
 
 #define NUM_BINS 16
 extern char __heap[];
@@ -103,6 +105,7 @@ void *malloc(size_t size) {
 
         bins[bin_idx] = allocated->next;
         allocated->next = NULL;
+        shadow_chunk(allocated);
         return allocated->data;
     }
 
@@ -134,6 +137,7 @@ void *malloc(size_t size) {
             memset(&allocated->data[allocated->capacity],
                    MALLOC_REDZONE_OVRFLOW_MARKER, MALLOC_REDZONE_LEN);
             allocated->next = NULL;
+            shadow_chunk(allocated);
             return allocated->data;
         }
         prev = chunk;
@@ -203,4 +207,33 @@ char *strdup(const char *s) {
 
 void malloc_init(void) {
     insert(__heap, (size_t) __heap_end - (size_t) __heap);
+}
+
+void shadow_chunk(struct malloc_chunk *chunk)
+{
+
+    // For the time being, have no distinctions and mark everything as unaddressable
+    size_t num_bytes = sizeof(chunk);
+    paddr_t ptr_cur = (paddr_t)chunk;
+    for(size_t i = 0; i < num_bytes/8; i++, ptr_cur+=8)
+    {
+        shadow[(ptr_cur)>>3] = SHADOW_UNADDRESSABLE;
+        DBG("%u", ptr_cur);
+    }
+
+    shadow[(ptr_cur)>>3] = (num_bytes)%8;
+    DBG("Left out space - %d", num_bytes%8);
+    // paddr_t ptr_next = chunk->next;
+
+    // for(size_t i = 0; i < 4; i++, ptr_next++)
+    // {
+    //     shadow[ptr_next>>3] = SHADOW_UNADDRESSABLE;
+    // }
+
+    // shadow[(paddr_t)(chunk->next)>>3] = SHADOW_UNADDRESSABLE;
+    // shadow[(paddr)]
+
+
+    // shadow[(paddr_t)(chunk->capacity)] = SHADOW_CAPACITY;
+
 }
