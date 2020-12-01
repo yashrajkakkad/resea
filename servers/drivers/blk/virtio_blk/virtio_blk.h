@@ -64,8 +64,9 @@ struct virtio_blk_req_header {
 } __packed;
 
 struct virtio_blk_req_buffer {
-    struct virtio_blk_req_header header;
+    // struct virtio_blk_req_header header;
     uint8_t data[512];
+    // uint8_t status;
 } __packed;
 
 #endif
