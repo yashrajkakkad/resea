@@ -195,7 +195,7 @@ static int virtq_alloc(struct virtio_virtq *vq, size_t len) {
 
     desc->flags = into_le16(flags);
     desc->len = into_le32(len);
-    desc->id = into_le16(index);
+    // desc->id = into_le16(index);
 
     vq->modern.next_avail++;
     if (vq->modern.next_avail == vq->num_descs) {
@@ -254,7 +254,7 @@ static void virtq_allocate_buffers(struct virtio_virtq *vq, size_t buffer_size,
 
     uint16_t flags = writable ? (VIRTQ_DESC_F_AVAIL | VIRTQ_DESC_F_WRITE) : 0;
     for (int i = 0; i < vq->num_descs; i++) {
-        vq->modern.descs[i].id = into_le16(i);
+        // vq->modern.descs[i].id = into_le16(i);
         vq->modern.descs[i].addr = into_le64(dma_daddr(dma) + (buffer_size * i));
         vq->modern.descs[i].len = into_le32(buffer_size);
         vq->modern.descs[i].flags = into_le16(flags);

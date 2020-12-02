@@ -57,15 +57,15 @@ void main(void) {
 
     int packet1 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_header));
     struct virtio_blk_req_header *blk_header = &((struct virtio_blk_req_header *) req_virtq->buffers)[packet1];
-    blk_header->type = VIRTIO_BLK_T_OUT;
+    blk_header->type = VIRTIO_BLK_T_IN;
     blk_header->reserved = 0;
     blk_header->sector = 1;
     req_virtq->modern.descs[packet1].flags |= VIRTQ_DESC_F_NEXT;
 
     int packet2 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_buffer));
     struct virtio_blk_req_buffer *blk_buffer = &((struct virtio_blk_req_buffer *) req_virtq->buffers)[packet2];
-    blk_buffer->data[0] = 69;
-    req_virtq->modern.descs[packet2].flags |= VIRTQ_DESC_F_NEXT;
+    blk_buffer->data[0] = 255;
+    req_virtq->modern.descs[packet2].flags |= (VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE);
 
     int packet3 = virtio->virtq_alloc(req_virtq, sizeof(uint8_t));
     req_virtq->modern.descs[packet3].flags |= VIRTQ_DESC_F_WRITE;
@@ -73,26 +73,29 @@ void main(void) {
 
     virtio->virtq_kick_desc(req_virtq, packet1);
 
-    DBG("Finished writing...");
-
-    int packet4 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_header));
-    struct virtio_blk_req_header *blk_header2 = &((struct virtio_blk_req_header *) req_virtq->buffers)[packet4];
-    blk_header2->type = VIRTIO_BLK_T_IN;
-    blk_header2->reserved = 0;
-    blk_header2->sector = 1;
-    req_virtq->modern.descs[packet4].flags |= VIRTQ_DESC_F_NEXT;
-
-    int packet5 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_buffer));
-    req_virtq->modern.descs[packet5].flags |= VIRTQ_DESC_F_NEXT;
-
-    int packet6 = virtio->virtq_alloc(req_virtq, sizeof(uint8_t));
-    req_virtq->modern.descs[packet6].flags |= VIRTQ_DESC_F_WRITE;
-    req_virtq->modern.descs[packet6].id = into_le16(1);
-
-    virtio->virtq_kick_desc(req_virtq, packet4);
-
-    struct virtio_blk_req_buffer *recv_data = &((struct virtio_blk_req_buffer *) req_virtq->buffers)[packet5];
+    struct virtio_blk_req_buffer *recv_data = &((struct virtio_blk_req_buffer *) req_virtq->buffers)[packet2];
     DBG("%d", recv_data->data[0]);
+
+    // DBG("Finished writing...");
+
+    // int packet4 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_header));
+    // struct virtio_blk_req_header *blk_header2 = &((struct virtio_blk_req_header *) req_virtq->buffers)[packet4];
+    // blk_header2->type = VIRTIO_BLK_T_IN;
+    // blk_header2->reserved = 0;
+    // blk_header2->sector = 1;
+    // req_virtq->modern.descs[packet4].flags |= VIRTQ_DESC_F_NEXT;
+
+    // int packet5 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_buffer));
+    // req_virtq->modern.descs[packet5].flags |= VIRTQ_DESC_F_NEXT;
+
+    // int packet6 = virtio->virtq_alloc(req_virtq, sizeof(uint8_t));
+    // req_virtq->modern.descs[packet6].flags |= VIRTQ_DESC_F_WRITE;
+    // req_virtq->modern.descs[packet6].id = into_le16(1);
+
+    // virtio->virtq_kick_desc(req_virtq, packet4);
+
+    // struct virtio_blk_req_buffer *recv_data = &((struct virtio_blk_req_buffer *) req_virtq->buffers)[packet5];
+    // DBG("%d", recv_data->data[0]);
 
     // uint8_t *status = &((uint8_t *)req_virtq->buffers)[packet3];
     // DBG("Status = %d", status);
