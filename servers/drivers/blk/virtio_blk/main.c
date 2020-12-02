@@ -13,10 +13,10 @@
 static struct virtio_ops *virtio = NULL;
 static struct virtio_virtq *req_virtq = NULL;
 
-static struct virtio_blk_req_buffer *virtq_blk_req_buffer(struct virtio_virtq *vq,
-                                                  unsigned index) {
-    return &((struct virtio_blk_req_buffer *) vq->buffers)[index];
-}
+// static struct virtio_blk_req_buffer *virtq_blk_req_buffer(struct virtio_virtq *vq,
+//                                                   unsigned index) {
+//     return &((struct virtio_blk_req_buffer *) vq->buffers)[index];
+// }
 
 void driver_handle_interrupt(void) {
     uint8_t status = virtio->read_isr_status();
@@ -32,6 +32,56 @@ void driver_handle_interrupt(void) {
     }
 }
 
+static error_t virtio_blk_read(offset_t sector, uint8_t *buf) {
+    int header_desc = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_header));
+    struct virtio_blk_req_header *blk_req_header = &((struct virtio_blk_req_header *) req_virtq->buffers)[header_desc];
+    blk_req_header->type = VIRTIO_BLK_T_IN;
+    blk_req_header->reserved = 0;
+    blk_req_header->sector = sector;
+    req_virtq->modern.descs[header_desc].flags |= VIRTQ_DESC_F_NEXT;
+
+    int buffer_desc = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_buffer));
+    req_virtq->modern.descs[buffer_desc].flags |= (VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE);
+
+    int status_desc = virtio->virtq_alloc(req_virtq, sizeof(uint8_t));
+    req_virtq->modern.descs[status_desc].flags |= VIRTQ_DESC_F_WRITE;
+    req_virtq->modern.descs[status_desc].id = into_le16(0);
+
+    virtio->virtq_kick_desc(req_virtq, header_desc);
+
+    struct virtio_blk_req_buffer *recv_data = &((struct virtio_blk_req_buffer *) req_virtq->buffers)[buffer_desc];
+
+    for (size_t i = 0; i < BUF_SIZE; i++) {
+        buf[i] = recv_data->data[i];
+    }
+
+    return OK;
+}
+
+static error_t virtio_blk_write(offset_t sector, const uint8_t *buf) {
+    int header_desc = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_header));
+    struct virtio_blk_req_header *blk_req_header = &((struct virtio_blk_req_header *) req_virtq->buffers)[header_desc];
+    blk_req_header->type = VIRTIO_BLK_T_OUT;
+    blk_req_header->reserved = 0;
+    blk_req_header->sector = sector;
+    req_virtq->modern.descs[header_desc].flags |= VIRTQ_DESC_F_NEXT;
+
+    int buffer_desc = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_buffer));
+    struct virtio_blk_req_buffer *blk_req_buffer = &((struct virtio_blk_req_buffer *) req_virtq->buffers)[buffer_desc];
+    for (size_t i = 0; i < BUF_SIZE; i++) {
+        blk_req_buffer->data[i] = buf[i];
+    }
+    req_virtq->modern.descs[buffer_desc].flags |= (VIRTQ_DESC_F_NEXT);
+
+    int status_desc = virtio->virtq_alloc(req_virtq, sizeof(uint8_t));
+    req_virtq->modern.descs[status_desc].flags |= VIRTQ_DESC_F_WRITE;
+    req_virtq->modern.descs[status_desc].id = into_le16(header_desc);
+
+    virtio->virtq_kick_desc(req_virtq, header_desc);
+
+    return OK;
+}
+
 void main(void) {
     TRACE("starting...");
 
@@ -42,12 +92,19 @@ void main(void) {
     // Negotiate required features
     virtio->negotiate_feature(VIRTIO_BLK_F_SEG_MAX | VIRTIO_BLK_F_BLK_SIZE | VIRTIO_BLK_F_GEOMETRY);
 
+    offset_t base = offsetof(struct virtio_blk_config, capacity_lo);
+    uint32_t cap_lo = virtio->read_device_config(base, sizeof(uint32_t));
+    base = offsetof(struct virtio_blk_config, capacity_hi);
+    uint32_t cap_hi = virtio->read_device_config(base, sizeof(uint32_t));
+    DBG("Capacity = %d", ((((uint64_t) cap_hi) << 32) | cap_lo));
+    base = offsetof(struct virtio_blk_config, seg_max);
+    DBG("Max. number of segments in a request = %d", virtio->read_device_config(base, sizeof(uint32_t)));
+    base = offsetof(struct virtio_blk_config, blk_size);
+    DBG("Block size of disk = %d", virtio->read_device_config(base, sizeof(uint32_t)));
+
     virtio->virtq_init(0);
     req_virtq = virtio->virtq_get(0);
     virtio->virtq_allocate_buffers(req_virtq, sizeof(struct virtio_blk_req_buffer), false);
-    // virtio->virtq_allocate_buffers(req_virtq, 1, sizeof(struct virtio_blk_req_header), false);
-    // virtio->virtq_allocate_buffers(req_virtq, 1, sizeof(struct virtio_blk_req_buffer), false);
-    // virtio->virtq_allocate_buffers(req_virtq, 1, sizeof(uint8_t), true);
 
     // Start listening for interrupts.
     ASSERT_OK(irq_acquire(irq));
@@ -55,58 +112,49 @@ void main(void) {
     // Make the device active.
     virtio->activate();
 
-    int packet1 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_header));
-    struct virtio_blk_req_header *blk_header = &((struct virtio_blk_req_header *) req_virtq->buffers)[packet1];
-    blk_header->type = VIRTIO_BLK_T_IN;
-    blk_header->reserved = 0;
-    blk_header->sector = 1;
-    req_virtq->modern.descs[packet1].flags |= VIRTQ_DESC_F_NEXT;
+    // DBG("Writing...");
+    // virtio_blk_write(1);
+    // DBG("Reading...");
+    // virtio_blk_read(1);
 
-    int packet2 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_buffer));
-    struct virtio_blk_req_buffer *blk_buffer = &((struct virtio_blk_req_buffer *) req_virtq->buffers)[packet2];
-    blk_buffer->data[0] = 255;
-    req_virtq->modern.descs[packet2].flags |= (VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE);
+    ASSERT_OK(ipc_serve("disk"));
+    TRACE("ready");
+    while (true) {
+        struct message m;
+        error_t err = ipc_recv(IPC_ANY, &m);
+        ASSERT_OK(err);
 
-    int packet3 = virtio->virtq_alloc(req_virtq, sizeof(uint8_t));
-    req_virtq->modern.descs[packet3].flags |= VIRTQ_DESC_F_WRITE;
-    req_virtq->modern.descs[packet3].id = into_le16(0);
+        // TODO: get the disk size
+        switch (m.type) {
+            case BLK_READ_MSG: {
+                size_t sector = m.blk_read.sector;
+                size_t len = m.blk_read.num_sectors * SECTOR_SIZE;
+                uint8_t buf[BUF_SIZE];
+                error_t err = virtio_blk_read(sector, buf);
+                if (err != OK) {
+                    ipc_reply_err(m.src, err);
+                    break;
+                }
+                m.type = BLK_READ_REPLY_MSG;
+                m.blk_read_reply.data = buf;
+                m.blk_read_reply.data_len = len;
+                ipc_reply(m.src, &m);
+                break;
+            }
+            case BLK_WRITE_MSG: {
+                error_t err = virtio_blk_write(m.blk_write.sector, m.blk_write.data);
+                free(m.blk_write.data);
+                if (err != OK) {
+                    ipc_reply_err(m.src, err);
+                    break;
+                }
 
-    virtio->virtq_kick_desc(req_virtq, packet1);
-
-    struct virtio_blk_req_buffer *recv_data = &((struct virtio_blk_req_buffer *) req_virtq->buffers)[packet2];
-    DBG("%d", recv_data->data[0]);
-
-    // DBG("Finished writing...");
-
-    // int packet4 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_header));
-    // struct virtio_blk_req_header *blk_header2 = &((struct virtio_blk_req_header *) req_virtq->buffers)[packet4];
-    // blk_header2->type = VIRTIO_BLK_T_IN;
-    // blk_header2->reserved = 0;
-    // blk_header2->sector = 1;
-    // req_virtq->modern.descs[packet4].flags |= VIRTQ_DESC_F_NEXT;
-
-    // int packet5 = virtio->virtq_alloc(req_virtq, sizeof(struct virtio_blk_req_buffer));
-    // req_virtq->modern.descs[packet5].flags |= VIRTQ_DESC_F_NEXT;
-
-    // int packet6 = virtio->virtq_alloc(req_virtq, sizeof(uint8_t));
-    // req_virtq->modern.descs[packet6].flags |= VIRTQ_DESC_F_WRITE;
-    // req_virtq->modern.descs[packet6].id = into_le16(1);
-
-    // virtio->virtq_kick_desc(req_virtq, packet4);
-
-    // struct virtio_blk_req_buffer *recv_data = &((struct virtio_blk_req_buffer *) req_virtq->buffers)[packet5];
-    // DBG("%d", recv_data->data[0]);
-
-    // uint8_t *status = &((uint8_t *)req_virtq->buffers)[packet3];
-    // DBG("Status = %d", status);
-
-    // offset_t base = offsetof(struct virtio_blk_config, capacity_lo);
-    // uint32_t cap_lo = virtio->read_device_config(base, sizeof(uint32_t));
-    // base = offsetof(struct virtio_blk_config, capacity_hi);
-    // uint32_t cap_hi = virtio->read_device_config(base, sizeof(uint32_t));
-    // DBG("Capacity = %d", ((((uint64_t) cap_hi) << 32) | cap_lo));
-    // base = offsetof(struct virtio_blk_config, seg_max);
-    // DBG("Max. number of segments in a request = %d", virtio->read_device_config(base, sizeof(uint32_t)));
-    // base = offsetof(struct virtio_blk_config, blk_size);
-    // DBG("Block size of disk = %d", virtio->read_device_config(base, sizeof(uint32_t)));
+                m.type = BLK_WRITE_REPLY_MSG;
+                ipc_reply(m.src, &m);
+                break;
+            }
+            default:
+                TRACE("unknown message %d", m.type);
+        }
+    }
 }

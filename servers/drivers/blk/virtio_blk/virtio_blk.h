@@ -3,6 +3,9 @@
 
 #include <types.h>
 
+#define BUF_SIZE 512
+#define SECTOR_SIZE 512
+
 #define VIRTIO_BLK_F_SIZE_MAX     (1 << 1)
 #define VIRTIO_BLK_F_SEG_MAX      (1 << 2)
 #define VIRTIO_BLK_F_GEOMETRY     (1 << 4)
@@ -59,7 +62,7 @@ struct virtio_blk_config {
 struct virtio_blk_req_header {
     uint32_t type;
     uint32_t reserved;
-    uint64_t sector;
+    offset_t sector;
     // uint8_t status;
 } __packed;
 
