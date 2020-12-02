@@ -177,6 +177,7 @@ void free(void *ptr) {
         chunk->next = head;
     }
     bins[bin_idx] = chunk;
+    shadow_free(chunk);
 }
 
 void *realloc(void *ptr, size_t size) {
@@ -217,18 +218,34 @@ void shadow_malloc(struct malloc_chunk *chunk)
     uint32_t reladdr = ptr_cur - (paddr_t)__heap;
     reladdr >>= 3;
     shadow[reladdr++] = SHADOW_NEXT_PTR; // *next
+
+    ptr_cur = (paddr_t)&(chunk->capacity);
+    reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
     for(size_t i = 0; i < 4; i++)
     {
         shadow[reladdr++] = SHADOW_CAPACITY; // capacity
     }
+
+    ptr_cur = (paddr_t)&(chunk->size);
+    reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
     for(size_t i = 0; i < 4; i++)
     {
         shadow[reladdr++] = SHADOW_SIZE; // size
     }
+
+    ptr_cur = (paddr_t)&(chunk->magic);
+    reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
     for(size_t i = 0; i < 8; i++)
     {
         shadow[reladdr++] = SHADOW_MAGIC; // magic
     }
+
+    ptr_cur = (paddr_t)(chunk->underflow_redzone);
+    reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
     for(size_t i = 0; i < MALLOC_REDZONE_LEN; i++)
     {
         shadow[reladdr++] = SHADOW_UNDERFLOW_REDZONE;
@@ -267,5 +284,55 @@ void shadow_malloc(struct malloc_chunk *chunk)
 
 void shadow_free(struct malloc_chunk *chunk)
 {
+    paddr_t ptr_cur = (paddr_t)(chunk);
+    uint32_t reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
+    shadow[reladdr++] = SHADOW_FREED; // *next
 
+    ptr_cur = (paddr_t)&(chunk->capacity);
+    reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
+    for(size_t i = 0; i < 4; i++)
+    {
+        shadow[reladdr++] = SHADOW_FREED; // capacity
+    }
+
+    ptr_cur = (paddr_t)&(chunk->size);
+    reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
+    for(size_t i = 0; i < 4; i++)
+    {
+        shadow[reladdr++] = SHADOW_FREED; // size
+    }
+
+    ptr_cur = (paddr_t)&(chunk->magic);
+    reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
+    for(size_t i = 0; i < 8; i++)
+    {
+        shadow[reladdr++] = SHADOW_FREED; // magic
+    }
+
+    ptr_cur = (paddr_t)(chunk->underflow_redzone);
+    reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
+    for(size_t i = 0; i < MALLOC_REDZONE_LEN; i++)
+    {
+        shadow[reladdr++] = SHADOW_FREED;
+    }
+
+    ptr_cur = (paddr_t)(chunk->data);
+    reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
+    for(size_t i = 0; i < (chunk->capacity + MALLOC_REDZONE_LEN); i++)
+    {
+        shadow[reladdr++] = SHADOW_FREED;
+    }
+
+
+    // DBG("Size of chunk to be freed - %u", sizeof(*chunk));
+    // for(size_t i = 0; i < sizeof(*chunk); i+=8)
+    // {
+    //     shadow[reladdr++] = SHADOW_FREED;
+    // }
 }

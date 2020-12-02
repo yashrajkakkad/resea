@@ -16,3 +16,4 @@ uint8_t shadow[NUM_BYTES];  /* .bss size + .data size + heap size */
 #define SHADOW_MAGIC -5
 #define SHADOW_UNDERFLOW_REDZONE -6
 #define SHADOW_DATA -7
+#define SHADOW_FREED -8

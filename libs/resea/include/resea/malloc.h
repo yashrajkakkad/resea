@@ -38,4 +38,5 @@ char *strndup(const char *s, size_t n);
 char *strdup(const char *s);
 void malloc_init(void);
 void shadow_malloc(struct malloc_chunk *chunk);
+void shadow_free(struct malloc_chunk *chunk);
 #endif
