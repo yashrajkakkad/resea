@@ -213,16 +213,37 @@ void malloc_init(void) {
 
 void shadow_malloc(struct malloc_chunk *chunk)
 {
-    // For the time being, have no distinctions and mark everything as unaddressable
-    size_t num_bytes = sizeof(chunk);
-    paddr_t ptr_cur = (paddr_t)chunk;
-    for(size_t i = 0; i < num_bytes/8; i++, ptr_cur+=8)
+    paddr_t ptr_cur = (paddr_t)(chunk);
+    uint32_t reladdr = ptr_cur - (paddr_t)__heap;
+    reladdr >>= 3;
+    shadow[reladdr++] = SHADOW_NEXT_PTR; // *next
+    for(size_t i = 0; i < 4; i++)
     {
-        // shadow[(ptr_cur)>>3] = SHADOW_UNADDRESSABLE;
-        uint32_t reladdr = (ptr_cur - (paddr_t)__heap);
-        shadow[reladdr] = SHADOW_UNADDRESSABLE;
-        DBG("%u", reladdr);
+        shadow[reladdr++] = SHADOW_CAPACITY; // capacity
     }
+    for(size_t i = 0; i < 4; i++)
+    {
+        shadow[reladdr++] = SHADOW_SIZE; // size
+    }
+    for(size_t i = 0; i < 8; i++)
+    {
+        shadow[reladdr++] = SHADOW_MAGIC; // magic
+    }
+    for(size_t i = 0; i < MALLOC_REDZONE_LEN; i++)
+    {
+        shadow[reladdr++] = SHADOW_UNDERFLOW_REDZONE;
+    }
+    // For the time being, have no distinctions and mark everything as unaddressable
+    // size_t num_bytes = sizeof(&chunk);
+    // paddr_t ptr_cur = (paddr_t)chunk;
+    // for(size_t i = 0; i < num_bytes/8; i++, ptr_cur+=8)
+    // {
+    //     // shadow[(ptr_cur)>>3] = SHADOW_UNADDRESSABLE;
+    //     uint32_t reladdr = (ptr_cur - (paddr_t)__heap);
+    //     shadow[reladdr] = SHADOW_UNADDRESSABLE;
+    //     DBG("%u", reladdr);
+    // }
+    // DBG("Size of struct pointer - %u", sizeof(chunk->next));
 
     // DBG("Stack - %u", (__stack_end - __stack));
 
@@ -244,3 +265,7 @@ void shadow_malloc(struct malloc_chunk *chunk)
 
 }
 
+void shadow_free(struct malloc_chunk *chunk)
+{
+
+}
