@@ -8,6 +8,8 @@
 #define NUM_BINS 16
 extern char __heap[];
 extern char __heap_end[];
+extern char __stack[];
+extern char __stack_end[];
 
 static struct malloc_chunk *bins[NUM_BINS];
 
@@ -105,7 +107,7 @@ void *malloc(size_t size) {
 
         bins[bin_idx] = allocated->next;
         allocated->next = NULL;
-        shadow_chunk(allocated);
+        shadow_malloc(allocated);
         return allocated->data;
     }
 
@@ -137,7 +139,7 @@ void *malloc(size_t size) {
             memset(&allocated->data[allocated->capacity],
                    MALLOC_REDZONE_OVRFLOW_MARKER, MALLOC_REDZONE_LEN);
             allocated->next = NULL;
-            shadow_chunk(allocated);
+            shadow_malloc(allocated);
             return allocated->data;
         }
         prev = chunk;
@@ -209,20 +211,24 @@ void malloc_init(void) {
     insert(__heap, (size_t) __heap_end - (size_t) __heap);
 }
 
-void shadow_chunk(struct malloc_chunk *chunk)
+void shadow_malloc(struct malloc_chunk *chunk)
 {
-
     // For the time being, have no distinctions and mark everything as unaddressable
     size_t num_bytes = sizeof(chunk);
     paddr_t ptr_cur = (paddr_t)chunk;
     for(size_t i = 0; i < num_bytes/8; i++, ptr_cur+=8)
     {
-        shadow[(ptr_cur)>>3] = SHADOW_UNADDRESSABLE;
-        DBG("%u", ptr_cur);
+        // shadow[(ptr_cur)>>3] = SHADOW_UNADDRESSABLE;
+        uint32_t reladdr = (ptr_cur - (paddr_t)__heap);
+        shadow[reladdr] = SHADOW_UNADDRESSABLE;
+        DBG("%u", reladdr);
     }
 
-    shadow[(ptr_cur)>>3] = (num_bytes)%8;
-    DBG("Left out space - %d", num_bytes%8);
+    // DBG("Stack - %u", (__stack_end - __stack));
+
+    // shadow[(ptr_cur)>>3] = (num_bytes)%8;
+    // DBG("Left out space - %d", num_bytes%8);
+    // DBG("Heap is at %u - %u", __heap, __heap_end);
     // paddr_t ptr_next = chunk->next;
 
     // for(size_t i = 0; i < 4; i++, ptr_next++)
@@ -237,3 +243,4 @@ void shadow_chunk(struct malloc_chunk *chunk)
     // shadow[(paddr_t)(chunk->capacity)] = SHADOW_CAPACITY;
 
 }
+
