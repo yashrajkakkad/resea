@@ -215,11 +215,13 @@ void malloc_init(void) {
 void shadow_malloc(struct malloc_chunk *chunk)
 {
     paddr_t ptr_cur = (paddr_t)(chunk);
+    DBG("next -> %u", ptr_cur);
     uint32_t reladdr = ptr_cur - (paddr_t)__heap;
     reladdr >>= 3;
     shadow[reladdr++] = SHADOW_NEXT_PTR; // *next
 
     ptr_cur = (paddr_t)&(chunk->capacity);
+    DBG("capacity -> %u", ptr_cur);
     reladdr = ptr_cur - (paddr_t)__heap;
     reladdr >>= 3;
     for(size_t i = 0; i < 4; i++)
@@ -228,6 +230,7 @@ void shadow_malloc(struct malloc_chunk *chunk)
     }
 
     ptr_cur = (paddr_t)&(chunk->size);
+    DBG("size -> %u", ptr_cur);
     reladdr = ptr_cur - (paddr_t)__heap;
     reladdr >>= 3;
     for(size_t i = 0; i < 4; i++)
@@ -236,6 +239,7 @@ void shadow_malloc(struct malloc_chunk *chunk)
     }
 
     ptr_cur = (paddr_t)&(chunk->magic);
+    DBG("magic -> %u", ptr_cur);
     reladdr = ptr_cur - (paddr_t)__heap;
     reladdr >>= 3;
     for(size_t i = 0; i < 8; i++)
@@ -244,12 +248,16 @@ void shadow_malloc(struct malloc_chunk *chunk)
     }
 
     ptr_cur = (paddr_t)(chunk->underflow_redzone);
+    DBG("underflow redzone -> %u", ptr_cur);
     reladdr = ptr_cur - (paddr_t)__heap;
     reladdr >>= 3;
     for(size_t i = 0; i < MALLOC_REDZONE_LEN; i++)
     {
         shadow[reladdr++] = SHADOW_UNDERFLOW_REDZONE;
     }
+
+    ptr_cur = (paddr_t)(chunk->data);
+    DBG("underflow data -> %u", ptr_cur);
     // For the time being, have no distinctions and mark everything as unaddressable
     // size_t num_bytes = sizeof(&chunk);
     // paddr_t ptr_cur = (paddr_t)chunk;
