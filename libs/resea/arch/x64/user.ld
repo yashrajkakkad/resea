@@ -44,11 +44,18 @@ SECTIONS {
         __heap_end = .;
 
         . = ALIGN(0x1000);
+        __shadow = .;
+        . += 0x24000;
+        __shadow_end = .;
+
+        . = ALIGN(0x1000);
         __bss = .;
         *(.bss);
         *(.bss.*);
         __bss_end = .;
+
     } :bss
+
 
     . = 0x05000000;
     __zeroed_pages_end = .;
@@ -57,4 +64,5 @@ SECTIONS {
     __free_vaddr = .;
     . = 0x0a000000;
     __free_vaddr_end = .;
+
 }

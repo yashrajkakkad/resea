@@ -1,7 +1,7 @@
 #include <list.h>
 #include <resea/malloc.h>
-#include <resea/printf.h>
 #include <kasan.h>
+#include <resea/printf.h>
 #include <string.h>
 
 
@@ -10,6 +10,9 @@ extern char __heap[];
 extern char __heap_end[];
 extern char __stack[];
 extern char __stack_end[];
+extern char __shadow[];  /* .bss size + .data size + heap size */
+extern char __shadow_end[];
+// extern char __shadow[];
 
 static struct malloc_chunk *bins[NUM_BINS];
 
@@ -107,7 +110,7 @@ void *malloc(size_t size) {
 
         bins[bin_idx] = allocated->next;
         allocated->next = NULL;
-        shadow_malloc(allocated);
+        shadow_malloc(allocated); // Shadow
         return allocated->data;
     }
 
@@ -140,6 +143,7 @@ void *malloc(size_t size) {
                    MALLOC_REDZONE_OVRFLOW_MARKER, MALLOC_REDZONE_LEN);
             allocated->next = NULL;
             shadow_malloc(allocated);
+            // DBG("Created a new chunk and allocated");
             return allocated->data;
         }
         prev = chunk;
@@ -214,11 +218,13 @@ void malloc_init(void) {
 
 void shadow_malloc(struct malloc_chunk *chunk)
 {
+    // Cast the address of chunk
+    DBG("%p", __shadow);
     paddr_t ptr_cur = (paddr_t)(chunk);
     DBG("next -> %u", ptr_cur);
-    uint32_t reladdr = ptr_cur - (paddr_t)__heap;
-    reladdr >>= 3;
-    shadow[reladdr++] = SHADOW_NEXT_PTR; // *next
+    uint32_t reladdr = ptr_cur - (paddr_t)__heap; // Relative address
+    reladdr >>= 3; // 8 to 1 mapping
+    __shadow[reladdr++] = SHADOW_NEXT_PTR; // *next
 
     ptr_cur = (paddr_t)&(chunk->capacity);
     DBG("capacity -> %u", ptr_cur);
@@ -226,7 +232,7 @@ void shadow_malloc(struct malloc_chunk *chunk)
     reladdr >>= 3;
     for(size_t i = 0; i < 4; i++)
     {
-        shadow[reladdr++] = SHADOW_CAPACITY; // capacity
+        __shadow[reladdr++] = SHADOW_CAPACITY; // capacity
     }
 
     ptr_cur = (paddr_t)&(chunk->size);
@@ -235,7 +241,7 @@ void shadow_malloc(struct malloc_chunk *chunk)
     reladdr >>= 3;
     for(size_t i = 0; i < 4; i++)
     {
-        shadow[reladdr++] = SHADOW_SIZE; // size
+        __shadow[reladdr++] = SHADOW_SIZE; // size
     }
 
     ptr_cur = (paddr_t)&(chunk->magic);
@@ -244,7 +250,7 @@ void shadow_malloc(struct malloc_chunk *chunk)
     reladdr >>= 3;
     for(size_t i = 0; i < 8; i++)
     {
-        shadow[reladdr++] = SHADOW_MAGIC; // magic
+        __shadow[reladdr++] = SHADOW_MAGIC; // magic
     }
 
     ptr_cur = (paddr_t)(chunk->underflow_redzone);
@@ -253,7 +259,7 @@ void shadow_malloc(struct malloc_chunk *chunk)
     reladdr >>= 3;
     for(size_t i = 0; i < MALLOC_REDZONE_LEN; i++)
     {
-        shadow[reladdr++] = SHADOW_UNDERFLOW_REDZONE;
+        __shadow[reladdr++] = SHADOW_UNDERFLOW_REDZONE;
     }
 
     ptr_cur = (paddr_t)(chunk->data);
@@ -263,40 +269,41 @@ void shadow_malloc(struct malloc_chunk *chunk)
     // paddr_t ptr_cur = (paddr_t)chunk;
     // for(size_t i = 0; i < num_bytes/8; i++, ptr_cur+=8)
     // {
-    //     // shadow[(ptr_cur)>>3] = SHADOW_UNADDRESSABLE;
+    //     // __shadow[(ptr_cur)>>3] = SHADOW_UNADDRESSABLE;
     //     uint32_t reladdr = (ptr_cur - (paddr_t)__heap);
-    //     shadow[reladdr] = SHADOW_UNADDRESSABLE;
+    //     __shadow[reladdr] = SHADOW_UNADDRESSABLE;
     //     DBG("%u", reladdr);
     // }
     // DBG("Size of struct pointer - %u", sizeof(chunk->next));
 
     // DBG("Stack - %u", (__stack_end - __stack));
 
-    // shadow[(ptr_cur)>>3] = (num_bytes)%8;
+    // __shadow[(ptr_cur)>>3] = (num_bytes)%8;
     // DBG("Left out space - %d", num_bytes%8);
     // DBG("Heap is at %u - %u", __heap, __heap_end);
     // paddr_t ptr_next = chunk->next;
 
     // for(size_t i = 0; i < 4; i++, ptr_next++)
     // {
-    //     shadow[ptr_next>>3] = SHADOW_UNADDRESSABLE;
+    //     __shadow[ptr_next>>3] = SHADOW_UNADDRESSABLE;
     // }
 
-    // shadow[(paddr_t)(chunk->next)>>3] = SHADOW_UNADDRESSABLE;
-    // shadow[(paddr)]
+    // __shadow[(paddr_t)(chunk->next)>>3] = SHADOW_UNADDRESSABLE;
+    // __shadow[(paddr)]
 
 
-    // shadow[(paddr_t)(chunk->capacity)] = SHADOW_CAPACITY;
+    // __shadow[(paddr_t)(chunk->capacity)] = SHADOW_CAPACITY;
 
 }
 
 void shadow_free(struct malloc_chunk *chunk)
 {
+    // Cast the address of chunk
     paddr_t ptr_cur = (paddr_t)(chunk);
-    uint32_t reladdr = ptr_cur - (paddr_t)__heap;
-    reladdr >>= 3;
+    uint32_t reladdr = ptr_cur - (paddr_t)__heap; // Relative address
+    reladdr >>= 3; // 8 to 1 mapping
     DBG("%u", reladdr);
-    shadow[reladdr++] = SHADOW_FREED; // *next
+    __shadow[reladdr++] = SHADOW_FREED; // *next
 
     ptr_cur = (paddr_t)&(chunk->capacity);
     reladdr = ptr_cur - (paddr_t)__heap;
@@ -304,7 +311,7 @@ void shadow_free(struct malloc_chunk *chunk)
     DBG("%u", reladdr);
     for(size_t i = 0; i < 4; i++)
     {
-        shadow[reladdr++] = SHADOW_FREED; // capacity
+        __shadow[reladdr++] = SHADOW_FREED; // capacity
     }
 
     ptr_cur = (paddr_t)&(chunk->size);
@@ -313,7 +320,7 @@ void shadow_free(struct malloc_chunk *chunk)
     DBG("%u", reladdr);
     for(size_t i = 0; i < 4; i++)
     {
-        shadow[reladdr++] = SHADOW_FREED; // size
+        __shadow[reladdr++] = SHADOW_FREED; // size
     }
 
     ptr_cur = (paddr_t)&(chunk->magic);
@@ -322,7 +329,7 @@ void shadow_free(struct malloc_chunk *chunk)
     DBG("%u", reladdr);
     for(size_t i = 0; i < 8; i++)
     {
-        shadow[reladdr++] = SHADOW_FREED; // magic
+        __shadow[reladdr++] = SHADOW_FREED; // magic
     }
 
     ptr_cur = (paddr_t)(chunk->underflow_redzone);
@@ -331,7 +338,7 @@ void shadow_free(struct malloc_chunk *chunk)
     DBG("%u", reladdr);
     for(size_t i = 0; i < MALLOC_REDZONE_LEN; i++)
     {
-        shadow[reladdr++] = SHADOW_FREED;
+        __shadow[reladdr++] = SHADOW_FREED;
     }
 
     ptr_cur = (paddr_t)(chunk->data);
@@ -340,7 +347,7 @@ void shadow_free(struct malloc_chunk *chunk)
     DBG("%u", reladdr);
     for(size_t i = 0; i < (chunk->capacity + MALLOC_REDZONE_LEN); i++)
     {
-        shadow[reladdr++] = SHADOW_FREED;
+        __shadow[reladdr++] = SHADOW_FREED;
     }
 
 
@@ -350,3 +357,4 @@ void shadow_free(struct malloc_chunk *chunk)
     //     shadow[reladdr++] = SHADOW_FREED;
     // }
 }
+
